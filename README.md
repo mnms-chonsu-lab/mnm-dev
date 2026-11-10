@@ -39,8 +39,11 @@
 - **API 명세**: `docs/api/openapi.yaml`이 기준입니다. 바꿀 땐 PR에 관련 레포(mnm-ai, mnm-data) 담당자를 리뷰어로 지정합니다.
 - 다른 레포에 영향 주는 PR은 본문에 관련 레포 PR·이슈 링크를 반드시 포함합니다.
 
-## 배포(`deploy.yml`)에 필요한 Secrets
-현재 단계는 TODO만 있습니다. 실제 배포 구현 시 아래 Secrets를 Organization 또는 Repository 단위로 등록해야 합니다 (@dooooing 설정).
+## 워크플로 / 배포
+`.github/workflows/`는 비워뒀습니다. 배포(`deploy.yml`) 등 필요한 워크플로는 @dooooing이 필요할 때 직접 추가합니다.
+
+### 배포에 필요한 Secrets (예정)
+실제 배포 구현 시 아래 Secrets를 Organization 또는 Repository 단위로 등록해야 합니다 (@dooooing 설정).
 
 | Secret | 용도 |
 |---|---|
