@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for Python files
+        id: check
+        run: |
+          if git ls-files | grep -q '\.py$'; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.found == 'true'
+        with:
+          python-version: "3.11"
+      - name: ruff
+        if: steps.check.outputs.found == 'true'
+        run: |
+          pip install ruff
+          ruff check .
+      - name: pytest
+        if: steps.check.outputs.found == 'true'
+        run: |
+          pip install pytest
+          [ -d tests ] && pytest || echo "no tests dir yet"
+      - name: no python files yet
+        if: steps.check.outputs.found == 'false'
+        run: echo "Python 대상 파일이 아직 없어 통과합니다."
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for package.json
+        id: check
+        run: |
+          if [ -f package.json ] || find . -name package.json -not -path '*/node_modules/*' | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.found == 'true'
+        with:
+          node-version: "20"
+      - name: install & lint & build
+        if: steps.check.outputs.found == 'true'
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm run build --if-present
+      - name: no node files yet
+        if: steps.check.outputs.found == 'false'
+        run: echo "Node 대상 파일이 아직 없어 통과합니다."

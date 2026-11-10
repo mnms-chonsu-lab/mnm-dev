@@ -1,0 +1,31 @@
+# 뼈대 — 실제 빌드 설정은 services/api, infra/docker에서 채웁니다.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: mnm
+      POSTGRES_USER: mnm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mnm}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./services/api
+    env_file: .env
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  # mnm-ai 레포가 main 머지 시 GHCR에 올리는 이미지. 태그는 mnm-ai 쪽 릴리스에 맞춰 갱신합니다.
+  mnm-ai:
+    image: ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest
+    env_file: .env
+    depends_on:
+      - db
+
+volumes:
+  db-data:

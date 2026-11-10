@@ -1,0 +1,58 @@
+name: Sync Labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pyyaml
+      - name: Sync labels from .github/labels.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - << 'PYEOF'
+          import json, os, subprocess, yaml
+
+          with open(".github/labels.yml") as f:
+              labels = yaml.safe_load(f)
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+
+          existing = json.loads(subprocess.run(
+              ["gh", "api", f"repos/{repo}/labels", "--paginate"],
+              capture_output=True, text=True, check=True).stdout)
+          existing_names = {l["name"] for l in existing}
+          wanted_names = {l["name"] for l in labels}
+
+          for l in labels:
+              if l["name"] in existing_names:
+                  subprocess.run([
+                      "gh", "api", "-X", "PATCH", f"repos/{repo}/labels/{l['name']}",
+                      "-f", f"new_name={l['name']}",
+                      "-f", f"color={l['color']}",
+                      "-f", f"description={l.get('description', '')}",
+                  ], check=True)
+              else:
+                  subprocess.run([
+                      "gh", "api", "-X", "POST", f"repos/{repo}/labels",
+                      "-f", f"name={l['name']}",
+                      "-f", f"color={l['color']}",
+                      "-f", f"description={l.get('description', '')}",
+                  ], check=True)
+
+          for name in existing_names - wanted_names:
+              subprocess.run(["gh", "api", "-X", "DELETE", f"repos/{repo}/labels/{name}"], check=True)
+          PYEOF

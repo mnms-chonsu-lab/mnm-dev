@@ -1,0 +1,17 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(dooooing): AWS 자격 증명 설정 (aws-actions/configure-aws-credentials)
+      # TODO(dooooing): 도커 이미지 빌드 및 ECR/레지스트리 push
+      # TODO(dooooing): ECS/EC2 등 운영 환경에 배포
+      # TODO(dooooing): 배포 후 헬스체크
+      - run: echo "TODO: 배포 단계 구현 필요"

@@ -1,0 +1,6 @@
+openapi: 3.0.3
+info:
+  title: mnm-dev API
+  version: 0.0.1
+  description: 촌수의사 백엔드 API 명세 (초기 뼈대, 엔드포인트 추가 예정)
+paths: {}
