@@ -29,3 +29,10 @@
 ## 레포 간 연결 시 주의
 - `docs/api/openapi.yaml` 변경 PR은 mnm-ai / mnm-data 담당자를 리뷰어로 지정합니다.
 - 다른 레포에 영향을 주는 PR은 본문에 관련 레포 PR·이슈 링크를 반드시 포함합니다.
+
+## 브랜치 보호 규칙 (main, develop)
+> GitHub Free 플랜 + private 레포는 branch protection API/설정이 막혀 있어 **강제되지 않는 규칙**입니다. 아래를 지켜주세요.
+- `main`, `develop`에 직접 push 금지. 반드시 PR을 거칩니다.
+- PR은 승인 1명 이상 받고 머지합니다.
+- CI(`ci.yml`)가 통과한 뒤 머지합니다.
+- force push를 하지 않습니다.
