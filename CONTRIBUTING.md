@@ -24,7 +24,7 @@
 
 ## 영역별 담당 (CODEOWNERS)
 - `services/api/**` — @joobogyeong, @dooooing
-- `infra/**`, `.github/**` — @dooooing (+ @kkamret 공동 리뷰)
+- `infra/**`, `.github/**` — @dooooing
 - 프론트엔드는 `mnm-frontend` 레포에서 관리합니다.
 
 ## 레포 간 연결 시 주의

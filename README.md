@@ -100,7 +100,7 @@ cp .env.example .env      # 키 값 채우기
 ```
 mnm-dev/
 ├── services/
-│   └── api/               # FastAPI 백엔드 — @dooooing
+│   └── api/               # FastAPI 백엔드 — @joobogyeong, @dooooing
 ├── infra/
 │   ├── docker/            # Dockerfile·compose 보조 설정
 │   └── aws/               # AWS 배포 구성
