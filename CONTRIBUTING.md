@@ -23,8 +23,9 @@
 - 관련 이슈·PR·기획서 절 번호는 "관련:" 줄에 모아서 링크합니다.
 
 ## 영역별 담당 (CODEOWNERS)
-- `apps/**` — @kkamret
-- `services/api/**`, `infra/**`, `.github/**` — @dooooing (+ @kkamret 공동 리뷰)
+- `services/api/**` — @joobogyeong, @dooooing
+- `infra/**`, `.github/**` — @dooooing (+ @kkamret 공동 리뷰)
+- 프론트엔드는 `mnm-frontend` 레포에서 관리합니다.
 
 ## 레포 간 연결 시 주의
 - `docs/api/openapi.yaml` 변경 PR은 mnm-ai / mnm-data 담당자를 리뷰어로 지정합니다.

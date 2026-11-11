@@ -1,11 +1,9 @@
 <div align="center">
   <h3>촌수의사 · mnm-dev</h3>
   <p>고령·소규모 한우농가가 말로 남긴 농장 일지를, 신고할 때 접수자(축협·방역기관)에게 한 장 요약으로 함께 전달하는 신고·기록·방역 업무 지원 AI</p>
-  <p><b>농가 앱 · 접수자 웹 · FastAPI 백엔드 · 배포 인프라</b></p>
+  <p><b>FastAPI 백엔드 · 배포 인프라</b></p>
+  <p>프론트엔드는 <a href="https://github.com/mnms-chonsu-lab/mnm-frontend">mnm-frontend</a>에서 관리합니다.</p>
   <p>
-    <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white" alt="React" />
-    <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/Vite-PWA-646CFF?logo=vite&logoColor=white" alt="Vite" />
     <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" alt="Docker" />
@@ -35,10 +33,10 @@
 
 | 핵심 기능 | 이 레포 담당 부분 |
 | --- | --- |
-| ① 말로 쓰는 농장 일지 | 농가 앱(`apps/farmer-app/`) 음성·사진 입력 화면, 업로드·저장 API |
-| ② 신고 기한 알림 + 신고서 초안 | 알림·초안 화면, 신고서 API (기한·상태 계산은 `mnm-ai/rules/` 결과 사용) |
-| ③ 기존 신고 경로로 연결 | 모든 화면의 `[바로 신고]`, 전화·사이트·축협 연결과 기록 전달 |
-| ④ 접수자용 한 장 요약 보기 | 접수자 웹(`apps/receiver-web/`) |
+| ① 말로 쓰는 농장 일지 | 음성·사진 업로드·저장 API |
+| ② 신고 기한 알림 + 신고서 초안 | 신고서 API (기한·상태 계산은 `mnm-ai/rules/` 결과 사용) |
+| ③ 기존 신고 경로로 연결 | 전화·사이트·축협 연결과 기록 전달 API |
+| ④ 접수자용 한 장 요약 보기 | 요약 카드 조회 API |
 
 그 외: 전체 `docker-compose.yml`, 배포 인프라(`infra/`), API 명세(`docs/api/openapi.yaml`).
 
@@ -58,8 +56,6 @@ cp .env.example .env      # 키 값 채우기
 | --- | --- | --- |
 | 전체 실행 | `docker compose up -d` | 🚧 구현 예정 (`docker-compose.yml`은 뼈대, `services/api` Dockerfile 없음) |
 | 백엔드 | `services/api/` 의존성 설치·실행 | 🚧 구현 예정 |
-| 농가 앱 | `apps/farmer-app/`에서 `npm install && npm run dev` | 🚧 구현 예정 |
-| 접수자 웹 | `apps/receiver-web/`에서 `npm install && npm run dev` | 🚧 구현 예정 |
 
 `docker-compose.yml` 구성: `db`(postgres:16), `api`(`services/api` 빌드), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 `GHCR_READ_TOKEN`으로 로그인해야 받을 수 있습니다.
 
@@ -90,9 +86,6 @@ cp .env.example .env      # 키 값 채우기
 
 | 영역 | 기술 | 용도 |
 | --- | --- | --- |
-| 프론트엔드 | React, TypeScript, Vite | 농가 앱·접수자 웹 |
-| PWA | Vite PWA 구성 | 농가 앱 설치·오프라인 대응 |
-| 디자인 | KRDS 디자인 토큰 | 공통 UI 기준 |
 | 백엔드 | FastAPI | REST API |
 | DB | PostgreSQL 16 | 일지·신고서·요약 카드 저장 (스키마는 `mnm-data/migrations`) |
 | 저장소 | AWS S3 | 사진·음성 파일 |
@@ -106,9 +99,6 @@ cp .env.example .env      # 키 값 채우기
 
 ```
 mnm-dev/
-├── apps/
-│   ├── farmer-app/        # 농가용 앱 (React+TS+Vite PWA) — @kkamret
-│   └── receiver-web/      # 접수자(축협·방역기관)용 웹 — @kkamret
 ├── services/
 │   └── api/               # FastAPI 백엔드 — @dooooing
 ├── infra/
@@ -128,7 +118,7 @@ mnm-dev/
 
 ## 서비스 구성과 데이터 흐름
 
-이 레포는 흐름의 **입구(농가 앱)와 출구(접수자 웹)**, 그리고 둘 사이를 잇는 API를 맡습니다. 단계별 처리(STT·구조화·검증)는 `mnm-ai`가 수행하고, 이 레포의 API가 호출합니다.
+이 레포는 흐름 전체를 잇는 API를 맡고, 화면(농가 앱·접수자 웹·어드민)은 `mnm-frontend`가 맡습니다. 단계별 처리(STT·구조화·검증)는 `mnm-ai`가 수행하고, 이 레포의 API가 호출합니다.
 
 ```
 농가 음성·사진
@@ -161,6 +151,7 @@ mnm-dev/
 | API 명세 | `docs/api/openapi.yaml`이 기준입니다. 바꿀 땐 PR에 관련 레포 담당자를 리뷰어로 지정합니다 |
 | PR 링크 | 다른 레포에 영향을 주는 PR은 본문에 관련 레포 PR·이슈 링크를 반드시 넣습니다 |
 
+- [mnm-frontend](https://github.com/mnms-chonsu-lab/mnm-frontend) — 농가 앱·접수자 웹·어드민
 - [mnm-ai](https://github.com/mnms-chonsu-lab/mnm-ai) — 에이전트·규칙·인식 모델
 - [mnm-data](https://github.com/mnms-chonsu-lab/mnm-data) — DB 마이그레이션·공공데이터·지식베이스
 
