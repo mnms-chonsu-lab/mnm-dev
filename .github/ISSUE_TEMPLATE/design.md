@@ -27,8 +27,6 @@ labels: design, 작업전
 
 🔗 영향 범위
 ---
-- [ ] `apps/farmer-app/`
-- [ ] `apps/receiver-web/`
 - [ ] `services/api/`
 - [ ] `infra/`
 - [ ] `docs/api/` (API 명세 변경 — 관련 레포 담당자 승인)

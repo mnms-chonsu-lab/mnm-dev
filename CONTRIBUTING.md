@@ -6,7 +6,7 @@
 - 1 이슈 = 1 브랜치 = 1 PR. **develop**으로 PR을 올립니다.
 - PR 제목: `type(영역): 요약 (#이슈번호)`
   - type: `feat` / `fix` / `docs` / `chore` / `test` / `refactor`
-  - 예) `feat(apps/farmer-app): 출생 신고 6항목 입력 폼 (#12)`
+  - 예) `feat(services/api): 신고서 초안 저장 API 추가 (#12)`
 - PR은 squash merge만 사용하며, PR 제목이 커밋 메시지가 됩니다. 머지 후 브랜치는 자동 삭제됩니다.
 
 ## 이슈·PR 작성 규칙

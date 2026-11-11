@@ -10,7 +10,7 @@ labels: enhancement, 작업전
 필요하면 앞에 [긴급], 뒤에 [기한: ~월/일] 추가
 
 예시)
-[제안][기능추가][apps/farmer-app] 농가 발화 → 출생 신고서 6항목 채우기
+[제안][기능추가][services/api] 신고서 초안 저장 API 추가
 [제안][기능개선][services/api] 사진 업로드 API 응답 속도 개선
 -->
 
@@ -26,8 +26,6 @@ labels: enhancement, 작업전
 
 🔗 관련 영역
 ---
-- [ ] `apps/farmer-app/`
-- [ ] `apps/receiver-web/`
 - [ ] `services/api/`
 - [ ] `infra/`
 - [ ] `docs/api/` (API 명세 변경 — 관련 레포 담당자 승인)
