@@ -18,7 +18,7 @@ services:
     depends_on:
       - db
     ports:
-      - "8000:8000"
+      - "8080:8080"
 
   # mnm-ai 레포가 main 머지 시 GHCR에 올리는 이미지. 태그는 mnm-ai 쪽 릴리스에 맞춰 갱신합니다.
   mnm-ai:

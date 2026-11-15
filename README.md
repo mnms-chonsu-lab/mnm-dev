@@ -1,10 +1,10 @@
 <div align="center">
   <h3>촌수의사 · mnm-dev</h3>
   <p>고령·소규모 한우농가가 말로 남긴 농장 일지를, 신고할 때 접수자(축협·방역기관)에게 한 장 요약으로 함께 전달하는 신고·기록·방역 업무 지원 AI</p>
-  <p><b>FastAPI 백엔드 · 배포 인프라</b></p>
+  <p><b>Spring Boot 백엔드 · 배포 인프라</b></p>
   <p>프론트엔드는 <a href="https://github.com/mnms-chonsu-lab/mnm-frontend">mnm-frontend</a>에서 관리합니다.</p>
   <p>
-    <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+    <img src="https://img.shields.io/badge/Spring%20Boot-Backend-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot" />
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" alt="Docker" />
     <img src="https://img.shields.io/badge/AWS-Deploy-232F3E?logo=amazonaws&logoColor=white" alt="AWS" />
@@ -55,9 +55,9 @@ cp .env.example .env      # 키 값 채우기
 | 단계 | 명령 | 상태 |
 | --- | --- | --- |
 | 전체 실행 | `docker compose up -d` | 🚧 구현 예정 (`docker-compose.yml`은 뼈대, `services/api` Dockerfile 없음) |
-| 백엔드 | `services/api/` 의존성 설치·실행 | 🚧 구현 예정 |
+| 백엔드 | `services/api/` 빌드·실행 | 🚧 구현 예정 (Spring Boot 프로젝트 없음) |
 
-`docker-compose.yml` 구성: `db`(postgres:16), `api`(`services/api` 빌드), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 `GHCR_READ_TOKEN`으로 로그인해야 받을 수 있습니다.
+`docker-compose.yml` 구성: `db`(postgres:16), `api`(`services/api` 빌드, 포트 `8080`), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 `GHCR_READ_TOKEN`으로 로그인해야 받을 수 있습니다.
 
 > 모델 가중치·원본 데이터는 git에 넣지 않습니다. S3 / MLflow에서 가져와 사용합니다.
 
@@ -86,7 +86,7 @@ cp .env.example .env      # 키 값 채우기
 
 | 영역 | 기술 | 용도 |
 | --- | --- | --- |
-| 백엔드 | FastAPI | REST API |
+| 백엔드 | Java · Spring Boot | REST API (버전·빌드 도구 미정) |
 | DB | PostgreSQL 16 | 일지·신고서·요약 카드 저장 (스키마는 `mnm-data/migrations`) |
 | 저장소 | AWS S3 | 사진·음성 파일 |
 | 배포 | Docker, AWS, GitHub Actions | 컨테이너 실행·운영 배포 |
@@ -100,7 +100,7 @@ cp .env.example .env      # 키 값 채우기
 ```
 mnm-dev/
 ├── services/
-│   └── api/               # FastAPI 백엔드 — @joobogyeong, @dooooing
+│   └── api/               # Spring Boot 백엔드 — @joobogyeong, @dooooing
 ├── infra/
 │   ├── docker/            # Dockerfile·compose 보조 설정
 │   └── aws/               # AWS 배포 구성
@@ -179,9 +179,10 @@ mnm-dev/
 | 항목 | 규칙 |
 | --- | --- |
 | 이슈 | `.github/ISSUE_TEMPLATE/`의 템플릿 5개 중 선택 (빈 이슈 금지) |
-| 브랜치 | `YYYYMMDD_#이슈번호_요약` — develop에서 분기, 예) `20261112_#12_농가_라우터_STT` |
+| 브랜치 | `YYYYMMDD_#이슈번호_요약` — develop에서 분기, 예) `20261112_#12_신고서_초안_저장_API` |
 | PR | `.github/pull_request_template.md` 사용, 대상은 `develop` |
-| PR 제목 | `type(영역): 요약 (#이슈번호)` — type: `feat` `fix` `docs` `chore` `test` `refactor` |
+| 이슈 제목 | `[타입] 요약` — 예) `[feat] 신고서 초안 저장 API 추가` |
+| PR 제목 | `[타입] 요약 (#이슈번호)` — 타입: `feat` `fix` `docs` `chore` `test` `refactor` `design` `review` |
 | 머지 | squash merge만, 머지 후 브랜치 자동 삭제 |
 | 원칙 | 1 이슈 = 1 브랜치 = 1 PR |
 

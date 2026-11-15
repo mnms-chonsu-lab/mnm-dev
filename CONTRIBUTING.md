@@ -2,11 +2,14 @@
 
 ## 브랜치 / 커밋 / PR 규칙
 - 브랜치명: `YYYYMMDD_#이슈번호_요약` (한글 가능, 공백은 `_`)
-  예) `20261112_#12_농가_라우터_STT`
+  예) `20261112_#12_신고서_초안_저장_API`
 - 1 이슈 = 1 브랜치 = 1 PR. **develop**으로 PR을 올립니다.
-- PR 제목: `type(영역): 요약 (#이슈번호)`
-  - type: `feat` / `fix` / `docs` / `chore` / `test` / `refactor`
-  - 예) `feat(services/api): 신고서 초안 저장 API 추가 (#12)`
+- 이슈 제목: `[타입] 요약`
+  - 예) `[feat] 신고서 초안 저장 API 추가`
+- PR 제목: `[타입] 요약 (#이슈번호)`
+  - 예) `[feat] 신고서 초안 저장 API 추가 (#12)`
+- 타입: `feat` / `fix` / `docs` / `chore` / `test` / `refactor` / `design` / `review`
+  - 대괄호는 맨 앞 타입 하나만 씁니다. 영역(`services/api` 등)은 본문에 적습니다.
 - PR은 squash merge만 사용하며, PR 제목이 커밋 메시지가 됩니다. 머지 후 브랜치는 자동 삭제됩니다.
 
 ## 이슈·PR 작성 규칙

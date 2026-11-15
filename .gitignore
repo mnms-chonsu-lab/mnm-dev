@@ -1,9 +1,11 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-*.egg-info/
+# Java (Gradle · Maven)
+.gradle/
+build/
+target/
+out/
+*.class
+!gradle/wrapper/gradle-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
 
 # Node
 node_modules/
