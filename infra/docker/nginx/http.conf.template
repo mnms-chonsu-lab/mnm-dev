@@ -1,0 +1,11 @@
+# 인증서 발급 전: HTTP로만 연다 (certbot 검증 경로 포함)
+include /etc/nginx/mnm/common.conf;
+
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+
+    include /etc/nginx/mnm/locations.conf;
+}

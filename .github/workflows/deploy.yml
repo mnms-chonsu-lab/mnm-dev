@@ -1,0 +1,84 @@
+name: deploy
+
+# develop 머지 → 스테이징 서버 배포.
+# 되돌리기: Actions 탭에서 수동 실행하고 image_tag에 이전 커밋 SHA를 넣는다.
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "services/api/**"
+      - "infra/docker/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "다시 배포할 이미지 태그(커밋 SHA). 비우면 현재 커밋을 빌드해서 배포"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency: deploy-staging
+
+env:
+  IMAGE: ghcr.io/mnms-chonsu-lab/mnm-api
+  TAG: ${{ inputs.image_tag || github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GHCR 로그인
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: 이미지 빌드·푸시
+        if: ${{ !inputs.image_tag }}
+        run: |
+          docker build -t "$IMAGE:$TAG" -t "$IMAGE:develop" services/api
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:develop"
+
+      - name: 서버 배포
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          SSH="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=accept-new $DEPLOY_USER@$DEPLOY_HOST"
+
+          $SSH "mkdir -p ~/mnm"
+          tar -C infra/docker -cf - compose.deploy.yml nginx \
+            | $SSH "tar -C ~/mnm -xf - && mv ~/mnm/compose.deploy.yml ~/mnm/compose.yml"
+
+          # 토큰은 표준 입력으로만 넘기고, 받은 뒤 로그아웃한다
+          printf '%s' "$GHCR_TOKEN" | $SSH "
+            set -e
+            cd ~/mnm
+            docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+            export IMAGE_TAG='$TAG'
+            docker compose pull api
+            docker compose up -d
+            docker logout ghcr.io
+            docker image prune -f
+          "
+
+      - name: 배포 확인
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST"
+          for i in $(seq 1 30); do
+            if $SSH "curl -sf http://localhost/health" | grep -q '"status":"UP"'; then
+              echo "배포 확인 완료"; exit 0
+            fi
+            sleep 5
+          done
+          echo "헬스 체크 실패"; exit 1

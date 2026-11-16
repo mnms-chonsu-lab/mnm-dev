@@ -27,7 +27,7 @@
 - `services/api/` Spring Boot 백엔드
 - `infra/docker/` Dockerfile·compose 보조 설정 · `infra/aws/` AWS 배포 구성
 - `docs/api/openapi.yaml` API 명세의 기준 문서 · `docs/decisions/` 결정 기록
-- 백엔드는 Java + Spring Boot로 만듭니다. Java·Spring Boot 버전과 빌드 도구는 아직 정하지 않았습니다. 사용자가 요청하지 않으면 프로젝트를 초기화하거나 의존성을 추가하지 않습니다.
+- 백엔드는 Java 21 + Spring Boot 4.1 + Gradle입니다. 사용자가 요청하지 않으면 의존성을 추가하지 않습니다.
 - 화면 목록·기능 명세는 별도 문서에서 관리합니다. README·코드 주석에 복사해 두지 않습니다.
 
 ## 이 레포에서 하지 않는 것

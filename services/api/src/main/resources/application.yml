@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: mnm-api
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # DB 구조는 mnm-data/migrations 에서만 바꾼다. 여기서는 엔티티와 맞는지만 검사한다.
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+
+server:
+  # nginx 뒤에서 https 주소를 올바르게 인식 (스웨거 서버 주소 등)
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-components: always
