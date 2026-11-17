@@ -75,8 +75,9 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           SSH="ssh -i $HOME/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST"
+          # 인증서가 있으면 http는 https로 넘어가므로 https(서버 안에서는 인증서 이름 검사 생략)를 먼저 확인
           for i in $(seq 1 30); do
-            if $SSH "curl -sf http://localhost/health" | grep -q '"status":"UP"'; then
+            if $SSH "curl -sk https://localhost/health || curl -s http://localhost/health" | grep -q '"status":"UP"'; then
               echo "배포 확인 완료"; exit 0
             fi
             sleep 5
