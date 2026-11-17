@@ -1,0 +1,1293 @@
+# 자동 생성 파일 — 직접 고치지 말고 mnm-ai/schemas를 고친 뒤 재생성
+openapi: 3.1.0
+info:
+  title: mnm-ai 내부 API
+  version: 0.1.0
+  description: '`services/api`(Spring)가 같은 Docker 네트워크 안에서 호출하는 AI 서버(FastAPI) 명세입니다.
+
+    외부(nginx)로는 열지 않습니다.
+
+
+    - 요청·응답 형식은 `mnm-ai/schemas/`가 기준이고, 이 파일은 그 형식을 그대로 옮긴 것입니다.
+
+    - 재생성: `python docs/api/gen_ai_internal.py <mnm-ai/schemas> docs/api/ai-internal.yaml`'
+servers:
+- url: http://mnm-ai:8000
+  description: Docker 내부 주소 (`AI_BASE_URL`)
+security:
+- internalToken: []
+paths:
+  /ai/stt:
+    post:
+      operationId: stt
+      tags:
+      - AI 내부
+      summary: 음성 → 글
+      description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
+
+        - 서버 재시도: api 실패·타임아웃만 1회 (제안값, 스테이징 실측으로 조정)
+
+        - 실패 시 대체 경로: 글로 쓰기 화면 (F-S02T)
+
+        - 형식 원본: `mnm-ai/schemas/stt.json`
+
+        - 관련 명세: REQ-AI-12'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  contentMediaType: audio/webm
+                  description: audio/webm | audio/mp4(m4a), 60초 이하
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SttResponse'
+        '422':
+          description: '`STT-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '503':
+          description: '`STT-FAIL` — 모델·외부 API 호출 실패. 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '504':
+          description: '`STT-FAIL` — 시간 제한 초과 (8초). 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+  /ai/route:
+    post:
+      operationId: route
+      tags:
+      - AI 내부
+      summary: 농가 발화 → 일지·신고 항목 분류
+      description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
+
+        - 서버 재시도: 타임아웃·5xx만 1회 (제안값, 스테이징 실측으로 조정)
+
+        - 실패 시 대체 경로: 선택형 입력 화면 (F-S03E)
+
+        - 형식 원본: `mnm-ai/schemas/router.json`
+
+        - 관련 명세: REQ-AI-12'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '422':
+          description: '`LLM-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '503':
+          description: '`LLM-FAIL` — 모델·외부 API 호출 실패. 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '504':
+          description: '`LLM-FAIL` — 시간 제한 초과 (8초). 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+  /ai/part-check:
+    post:
+      operationId: part_check
+      tags:
+      - AI 내부
+      summary: 요청한 부위가 찍혔는지 확인
+      description: '- 시간 제한: 1.5초 (`common.TIMEOUT_SEC`)
+
+        - 서버 재시도: 안 함 (1.5초라 여유 없음) (제안값, 스테이징 실측으로 조정)
+
+        - 실패 시 대체 경로: 판정 없이 진행
+
+        - 형식 원본: `mnm-ai/schemas/part_check.json`
+
+        - 관련 명세: REQ-AI-03, REQ-AI-12'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartCheckRequest'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartCheckResponse'
+        '422':
+          description: '`PART-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '503':
+          description: '`PART-FAIL` — 모델·외부 API 호출 실패. 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '504':
+          description: '`PART-FAIL` — 시간 제한 초과 (1.5초). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+  /ai/behavior:
+    post:
+      operationId: behavior
+      tags:
+      - AI 내부
+      summary: 영상 → 서기·눕기·먹기 비율
+      description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
+
+        - 서버 재시도: 타임아웃·5xx만 1회 (제안값, 스테이징 실측으로 조정)
+
+        - 실패 시 대체 경로: 영상만 저장 후 진행
+
+        - 형식 원본: `mnm-ai/schemas/behavior.json`
+
+        - 관련 명세: REQ-AI-11, REQ-AI-12'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BehaviorRequest'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehaviorResponse'
+        '422':
+          description: '`BEHAVIOR-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '503':
+          description: '`BEHAVIOR-FAIL` — 모델·외부 API 호출 실패. 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '504':
+          description: '`BEHAVIOR-FAIL` — 시간 제한 초과 (8초). 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+  /ai/guide:
+    post:
+      operationId: guide
+      tags:
+      - AI 내부
+      summary: 공식 지침 조항 찾기 (원문 그대로 반환)
+      description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
+
+        - 서버 재시도: 타임아웃·5xx만 1회 (`RAG-NONE`은 재시도 안 함) (제안값, 스테이징 실측으로 조정)
+
+        - 실패 시 대체 경로: [바로 신고]·담당 축협 연결
+
+        - 형식 원본: `mnm-ai/schemas/guide.json`
+
+        - 관련 명세: REQ-AI-12'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuideRequest'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuideResponse'
+        '404':
+          description: '`RAG-NONE` — 근거 조항 없음. `detail.fallback = true`. 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '503':
+          description: '`RAG-NONE` — 모델·외부 API 호출 실패. 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '504':
+          description: '`RAG-NONE` — 시간 제한 초과 (8초). 재시도 대상'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+  /ai/summary:
+    post:
+      operationId: summary
+      tags:
+      - AI 내부
+      summary: 접수자용 한 장 요약·신고서 6항목
+      description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
+
+        - 서버 재시도: 안 함 (규칙 기반이라 결과 같음) (제안값, 스테이징 실측으로 조정)
+
+        - 실패 시 대체 경로: 미정 (mnm-dev#5에서 결정)
+
+        - 형식 원본: `mnm-ai/schemas/summary.json`
+
+        - 관련 명세: REQ-AI-12'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummaryRequest'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+        '422':
+          description: '`LLM-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '503':
+          description: '`LLM-FAIL` — 모델·외부 API 호출 실패. 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+        '504':
+          description: '`LLM-FAIL` — 시간 제한 초과 (8초). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
+  /health:
+    get:
+      operationId: health
+      tags:
+      - 운영
+      summary: AI 서버 상태 확인
+      security: []
+      responses:
+        '200':
+          description: 정상
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - status
+                properties:
+                  status:
+                    const: ok
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    description: 기능별 `model_version`
+components:
+  securitySchemes:
+    internalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+      description: 서버 간 공유 토큰 (`AI_INTERNAL_TOKEN`). 값은 비밀 저장소에만 보관
+  schemas:
+    AiError:
+      type: object
+      required:
+      - code
+      - message
+      additionalProperties: false
+      description: 모든 AI 오류 공통 형식. 화면 분기는 `code`만 본다.
+      properties:
+        code:
+          enum:
+          - STT-FAIL
+          - LLM-FAIL
+          - PART-FAIL
+          - BEHAVIOR-FAIL
+          - RAG-NONE
+        message:
+          type: string
+        detail:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+    BehaviorError:
+      additionalProperties: false
+      properties:
+        code:
+          const: BEHAVIOR-FAIL
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        detail:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Detail
+      required:
+      - code
+      - message
+      title: BehaviorErrorResponse
+      type: object
+    BehaviorFrame:
+      additionalProperties: false
+      properties:
+        t:
+          description: 영상 내 시각(초)
+          minimum: 0
+          title: T
+          type: number
+        label:
+          enum:
+          - stand
+          - lie
+          - eat
+          title: Label
+          type: string
+        confidence:
+          maximum: 1
+          minimum: 0
+          title: Confidence
+          type: number
+        bbox:
+          description: 방향 보정 후 화면 기준 픽셀 [x1, y1, x2, y2]
+          maxItems: 4
+          minItems: 4
+          prefixItems:
+          - type: number
+          - type: number
+          - type: number
+          - type: number
+          title: Bbox
+          type: array
+      required:
+      - t
+      - label
+      - confidence
+      - bbox
+      title: BehaviorFrame
+      type: object
+    BehaviorRequest:
+      additionalProperties: false
+      properties:
+        video_url:
+          description: 스마트폰 영상 주소 (mp4·mov, HEVC 포함). 처음 10초만 사용
+          title: Video Url
+          type: string
+      required:
+      - video_url
+      title: BehaviorRequest
+      type: object
+    BehaviorResponse:
+      additionalProperties: false
+      properties:
+        frames:
+          description: 검출된 소 1마리(박스 1개)당 1줄
+          items:
+            $ref: '#/components/schemas/BehaviorFrame'
+          title: Frames
+          type: array
+        summary:
+          $ref: '#/components/schemas/BehaviorSummary'
+        main_label:
+          anyOf:
+          - enum:
+            - stand
+            - lie
+            - eat
+            type: string
+          - type: 'null'
+          description: 가장 많은 행동, 검출이 없으면 null
+          title: Main Label
+        model_version:
+          title: Model Version
+          type: string
+      required:
+      - frames
+      - summary
+      - main_label
+      - model_version
+      title: BehaviorResponse
+      type: object
+    BehaviorSummary:
+      additionalProperties: false
+      properties:
+        stand:
+          description: 서기 비율(%), 박스 수 기준
+          maximum: 100
+          minimum: 0
+          title: Stand
+          type: number
+        lie:
+          description: 눕기 비율(%)
+          maximum: 100
+          minimum: 0
+          title: Lie
+          type: number
+        eat:
+          description: 먹기 비율(%)
+          maximum: 100
+          minimum: 0
+          title: Eat
+          type: number
+      required:
+      - stand
+      - lie
+      - eat
+      title: BehaviorSummary
+      type: object
+    GuideCitation:
+      additionalProperties: false
+      properties:
+        doc:
+          title: Doc
+          type: string
+        clause:
+          title: Clause
+          type: string
+        revised_at:
+          format: date
+          title: Revised At
+          type: string
+      required:
+      - doc
+      - clause
+      - revised_at
+      title: Citation
+      type: object
+    GuideError:
+      additionalProperties: false
+      properties:
+        code:
+          const: RAG-NONE
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        detail:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Detail
+      required:
+      - code
+      - message
+      title: GuideErrorResponse
+      type: object
+    GuideRequest:
+      additionalProperties: false
+      properties:
+        disease:
+          anyOf:
+          - enum:
+            - FMD
+            - LSD
+            type: string
+          - type: 'null'
+          default: null
+          title: Disease
+        stage:
+          title: Stage
+          type: string
+        query:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: 농가·접수자 질문. 없으면 단계별 조항 목록
+          title: Query
+      required:
+      - stage
+      title: GuideRequest
+      type: object
+    GuideResponse:
+      additionalProperties: false
+      properties:
+        rule_ids:
+          items:
+            type: string
+          title: Rule Ids
+          type: array
+        texts:
+          description: 조항 원문 그대로. rule_ids 와 같은 순서
+          items:
+            type: string
+          title: Texts
+          type: array
+        citations:
+          description: rule_ids 와 같은 순서
+          items:
+            $ref: '#/components/schemas/GuideCitation'
+          title: Citations
+          type: array
+        fallback:
+          description: 근거가 없으면 true. 이때는 RAG-NONE 오류로 반환
+          title: Fallback
+          type: boolean
+      required:
+      - rule_ids
+      - texts
+      - citations
+      - fallback
+      title: GuideResponse
+      type: object
+    PartCheckError:
+      additionalProperties: false
+      properties:
+        code:
+          const: PART-FAIL
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        detail:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Detail
+      required:
+      - code
+      - message
+      title: PartCheckErrorResponse
+      type: object
+    PartCheckQuality:
+      additionalProperties: false
+      properties:
+        dark:
+          description: 평균 밝기 < 60/255
+          title: Dark
+          type: boolean
+        blurry:
+          description: 선명도(라플라시안 분산) < 기준값
+          title: Blurry
+          type: boolean
+        brightness:
+          description: 평균 밝기 (0–255)
+          maximum: 255
+          minimum: 0
+          title: Brightness
+          type: number
+      required:
+      - dark
+      - blurry
+      - brightness
+      title: Quality
+      type: object
+    PartCheckRequest:
+      additionalProperties: false
+      properties:
+        image_url:
+          description: 사진 주소 (jpg·png·heic)
+          title: Image Url
+          type: string
+        requested_part:
+          description: 앱이 촬영을 요청한 부위
+          enum:
+          - mouth
+          - udder
+          - hoof
+          - flank
+          title: Requested Part
+          type: string
+      required:
+      - image_url
+      - requested_part
+      title: PartCheckRequest
+      type: object
+    PartCheckResponse:
+      additionalProperties: false
+      properties:
+        requested_part:
+          enum:
+          - mouth
+          - udder
+          - hoof
+          - flank
+          title: Requested Part
+          type: string
+        predicted_part:
+          description: 모델이 고른 부위. 로그·어드민용, 농가 화면에 노출하지 않음
+          enum:
+          - mouth
+          - udder
+          - hoof
+          - flank
+          title: Predicted Part
+          type: string
+        match:
+          description: predicted_part == requested_part 그리고 score >= 기준값
+          title: Match
+          type: boolean
+        score:
+          description: predicted_part 의 점수 softmax(100 × 코사인)
+          maximum: 1
+          minimum: 0
+          title: Score
+          type: number
+        quality:
+          $ref: '#/components/schemas/PartCheckQuality'
+        model_version:
+          title: Model Version
+          type: string
+        fallback:
+          default: false
+          description: 대체 경로(OpenAI Vision) 사용 여부
+          title: Fallback
+          type: boolean
+      required:
+      - requested_part
+      - predicted_part
+      - match
+      - score
+      - quality
+      - model_version
+      title: PartCheckResponse
+      type: object
+    RouteBirthFields:
+      additionalProperties: false
+      properties:
+        mother_tag4:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Mother Tag4
+        birth_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          default: null
+          title: Birth Date
+        sex:
+          anyOf:
+          - enum:
+            - 암
+            - 수
+            type: string
+          - type: 'null'
+          default: null
+          title: Sex
+      title: BirthFields
+      type: object
+    RouteCow:
+      additionalProperties: false
+      properties:
+        tag4:
+          description: 개체번호 끝 4자리
+          title: Tag4
+          type: string
+        desc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: '농가가 부르는 특징 (예: 큰 암소)'
+          title: Desc
+        barn:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: 축사 칸
+          title: Barn
+      required:
+      - tag4
+      title: Cow
+      type: object
+    RouteDeathFields:
+      additionalProperties: false
+      properties:
+        cow_tag:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Cow Tag
+        death_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          default: null
+          title: Death Date
+      title: DeathFields
+      type: object
+    RouteError:
+      additionalProperties: false
+      properties:
+        code:
+          const: LLM-FAIL
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        detail:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Detail
+      required:
+      - code
+      - message
+      title: RouteErrorResponse
+      type: object
+    RouteFarmContext:
+      additionalProperties: false
+      properties:
+        cows:
+          items:
+            $ref: '#/components/schemas/RouteCow'
+          title: Cows
+          type: array
+      required:
+      - cows
+      title: FarmContext
+      type: object
+    RouteItem:
+      additionalProperties: false
+      properties:
+        category:
+          enum:
+          - 사육현황
+          - 접종
+          - 소독
+          - 관찰
+          - 출입
+          - 출생
+          - 폐사
+          - 이동
+          - 메모
+          title: Category
+          type: string
+        value:
+          title: Value
+          type: string
+        cow_tag4:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: 소 목록에 없으면 null
+          title: Cow Tag4
+        vaccine_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Vaccine Type
+        head_count:
+          anyOf:
+          - minimum: 0
+            type: integer
+          - type: 'null'
+          default: null
+          title: Head Count
+      required:
+      - category
+      - value
+      title: RouteItem
+      type: object
+    RouteMoveFields:
+      additionalProperties: false
+      properties:
+        move_type:
+          anyOf:
+          - enum:
+            - sell
+            - buy
+            - move
+            type: string
+          - type: 'null'
+          default: null
+          title: Move Type
+        cow_tag:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Cow Tag
+        move_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          default: null
+          title: Move Date
+        counterpart_farm_no:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Counterpart Farm No
+        counterpart_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Counterpart Name
+      title: MoveFields
+      type: object
+    RouteRequest:
+      additionalProperties: false
+      description: 이름·전화번호는 넣지 않는다.
+      properties:
+        text:
+          description: 농가 발화 (STT 결과 또는 직접 입력)
+          minLength: 1
+          title: Text
+          type: string
+        today:
+          description: 상대 날짜 변환 기준일
+          format: date
+          title: Today
+          type: string
+        farm_context:
+          $ref: '#/components/schemas/RouteFarmContext'
+      required:
+      - text
+      - today
+      - farm_context
+      title: RouteRequest
+      type: object
+    RouteResponse:
+      additionalProperties: false
+      properties:
+        intent:
+          enum:
+          - diary
+          - history_report
+          - symptom
+          title: Intent
+          type: string
+        items:
+          items:
+            $ref: '#/components/schemas/RouteItem'
+          title: Items
+          type: array
+        report_type:
+          anyOf:
+          - enum:
+            - birth
+            - death
+            - move
+            type: string
+          - type: 'null'
+          default: null
+          title: Report Type
+        report_fields:
+          anyOf:
+          - $ref: '#/components/schemas/RouteBirthFields'
+          - $ref: '#/components/schemas/RouteDeathFields'
+          - $ref: '#/components/schemas/RouteMoveFields'
+          - additionalProperties: true
+            type: object
+          description: report_type 에 맞는 항목. 신고가 아니면 {}
+          title: Report Fields
+        missing:
+          description: 말한 개체번호 끝 4자리가 소 목록에 없으면 "cow"
+          items:
+            type: string
+          title: Missing
+          type: array
+      required:
+      - intent
+      - items
+      title: RouteResponse
+      type: object
+    SttError:
+      additionalProperties: false
+      properties:
+        code:
+          const: STT-FAIL
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        detail:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Detail
+      required:
+      - code
+      - message
+      title: SttErrorResponse
+      type: object
+    SttResponse:
+      additionalProperties: false
+      properties:
+        text:
+          minLength: 1
+          title: Text
+          type: string
+        duration_sec:
+          maximum: 60
+          minimum: 0
+          title: Duration Sec
+          type: number
+      required:
+      - text
+      - duration_sec
+      title: SttResponse
+      type: object
+    SummaryCard:
+      additionalProperties: false
+      properties:
+        cow:
+          $ref: '#/components/schemas/SummaryCowInfo'
+        matched_symptoms:
+          description: '"예"로 답한 공식 증상 이름 (판정 아님)'
+          items:
+            type: string
+          title: Matched Symptoms
+          type: array
+        diary_related:
+          description: 같은 개체, found_date 포함 최근 7일, 최근순
+          items:
+            $ref: '#/components/schemas/SummaryDiaryRecord'
+          title: Diary Related
+          type: array
+        photos:
+          items:
+            $ref: '#/components/schemas/SummaryPhotoResult'
+          title: Photos
+          type: array
+        vaccine:
+          anyOf:
+          - $ref: '#/components/schemas/SummaryLatestRecord'
+          - type: 'null'
+          description: 가장 최근 접종 기록
+        disinfection:
+          anyOf:
+          - $ref: '#/components/schemas/SummaryLatestRecord'
+          - type: 'null'
+          description: 가장 최근 소독 기록
+        visit:
+          anyOf:
+          - $ref: '#/components/schemas/SummaryLatestRecord'
+          - type: 'null'
+          description: 일지 분류 '출입' 중 가장 최근 1건
+      required:
+      - cow
+      - matched_symptoms
+      - diary_related
+      - photos
+      - vaccine
+      - disinfection
+      - visit
+      title: Card
+      type: object
+    SummaryCowInfo:
+      additionalProperties: false
+      properties:
+        tag4:
+          title: Tag4
+          type: string
+        desc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Desc
+        barn:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Barn
+      required:
+      - tag4
+      title: CowInfo
+      type: object
+    SummaryDiaryRecord:
+      additionalProperties: false
+      properties:
+        cow_tag4:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: '개체 기록이 아니면 null (예: 축사 소독)'
+          title: Cow Tag4
+        category:
+          description: mnm-data diary_entry.category. '신고'는 서버 자동 기록
+          enum:
+          - 사육현황
+          - 접종
+          - 소독
+          - 관찰
+          - 출입
+          - 출생
+          - 폐사
+          - 이동
+          - 신고
+          - 메모
+          title: Category
+          type: string
+        value:
+          title: Value
+          type: string
+        date:
+          format: date
+          title: Date
+          type: string
+      required:
+      - cow_tag4
+      - category
+      - value
+      - date
+      title: DiaryRecord
+      type: object
+    SummaryError:
+      additionalProperties: false
+      properties:
+        code:
+          const: LLM-FAIL
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        detail:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Detail
+      required:
+      - code
+      - message
+      title: SummaryErrorResponse
+      type: object
+    SummaryForm6:
+      additionalProperties: false
+      description: 가축전염병 예방법 시행규칙 제13조 제1항 각 호.
+      properties:
+        owner_and_location:
+          description: 1. 소유자 성명 및 사육 장소
+          title: Owner And Location
+          type: string
+        species_and_head_count:
+          description: 2. 가축의 종류 및 두수
+          title: Species And Head Count
+          type: string
+        condition:
+          description: '3. 질병명 칸: 항상 "발견 당시 상태: …" (추정 병명 금지)'
+          title: Condition
+          type: string
+        found_date:
+          description: 4. 폐사일 또는 발견일
+          format: date
+          title: Found Date
+          type: string
+        reporter:
+          description: 5. 신고자 성명 및 주소
+          title: Reporter
+          type: string
+        other:
+          default: ''
+          description: 6. 그 밖의 사항
+          title: Other
+          type: string
+      required:
+      - owner_and_location
+      - species_and_head_count
+      - condition
+      - found_date
+      - reporter
+      title: Form6
+      type: object
+    SummaryLatestRecord:
+      additionalProperties: false
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        value:
+          title: Value
+          type: string
+        days_ago:
+          description: found_date 기준 며칠 전
+          minimum: 0
+          title: Days Ago
+          type: integer
+      required:
+      - date
+      - value
+      - days_ago
+      title: LatestRecord
+      type: object
+    SummaryPhotoResult:
+      additionalProperties: false
+      properties:
+        part:
+          description: 요청 부위
+          enum:
+          - mouth
+          - udder
+          - hoof
+          - flank
+          title: Part
+          type: string
+        match:
+          description: /ai/part-check 결과
+          title: Match
+          type: boolean
+      required:
+      - part
+      - match
+      title: PhotoResult
+      type: object
+    SummaryRequest:
+      additionalProperties: false
+      properties:
+        record_id:
+          description: 승인된 소 상태 기록 ID
+          title: Record Id
+          type: string
+        found_date:
+          description: 발견일 (관련 일지 기준일)
+          format: date
+          title: Found Date
+          type: string
+        cow:
+          $ref: '#/components/schemas/SummaryCowInfo'
+        symptom_answers:
+          $ref: '#/components/schemas/SummarySymptomAnswers'
+        photos:
+          items:
+            $ref: '#/components/schemas/SummaryPhotoResult'
+          title: Photos
+          type: array
+        diary:
+          description: 농장 일지 (최근 14일 이상)
+          items:
+            $ref: '#/components/schemas/SummaryDiaryRecord'
+          title: Diary
+          type: array
+        report_fields:
+          additionalProperties: true
+          description: 의심 신고 상태 머신(rules/report_state_machine)의 fields, 빈칸 없음
+          title: Report Fields
+          type: object
+        farm_total_head:
+          anyOf:
+          - minimum: 1
+            type: integer
+          - type: 'null'
+          default: null
+          description: 농장 정보의 전체 사육 두수. 있으면 신고서 2호에 괄호로 붙임
+          title: Farm Total Head
+      required:
+      - record_id
+      - found_date
+      - cow
+      - symptom_answers
+      - report_fields
+      title: SummaryRequest
+      type: object
+    SummaryResponse:
+      additionalProperties: false
+      properties:
+        card:
+          $ref: '#/components/schemas/SummaryCard'
+        form6:
+          $ref: '#/components/schemas/SummaryForm6'
+        form6_text:
+          description: 인터넷 신고서 복사 텍스트 (F-S14·R-P02 '객체 + 텍스트')
+          title: Form6 Text
+          type: string
+      required:
+      - card
+      - form6
+      - form6_text
+      title: SummaryResponse
+      type: object
+    SummarySymptomAnswers:
+      additionalProperties: false
+      description: 공식 증상 질문 4개에 대한 예(true)/아니요(false).
+      properties:
+        drool:
+          description: 침 흘림
+          title: Drool
+          type: boolean
+        blister:
+          description: 물집
+          title: Blister
+          type: boolean
+        lump:
+          description: 혹
+          title: Lump
+          type: boolean
+        feed:
+          description: 사료 남김
+          title: Feed
+          type: boolean
+      required:
+      - drool
+      - blister
+      - lump
+      - feed
+      title: SymptomAnswers
+      type: object
