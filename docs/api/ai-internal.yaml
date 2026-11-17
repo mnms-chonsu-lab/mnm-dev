@@ -25,7 +25,7 @@ paths:
       summary: 음성 → 글
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: api 실패·타임아웃만 1회 (제안값, 스테이징 실측으로 조정)
+        - 서버 재시도: 503이 바로 온 경우만 1회 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: 글로 쓰기 화면 (F-S02T)
 
@@ -53,19 +53,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/SttResponse'
         '422':
-          description: '`STT-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          description: '`STT-FAIL` — 입력 때문에 실패 (파일 형식·60초 초과·무음). 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`STT-FAIL` — 모델·외부 API 호출 실패. 재시도 대상'
+          description: '`STT-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '504':
-          description: '`STT-FAIL` — 시간 제한 초과 (8초). 재시도 대상'
+          description: '`STT-FAIL` — 시간 제한 초과 (8초). 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -78,7 +78,7 @@ paths:
       summary: 농가 발화 → 일지·신고 항목 분류
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 타임아웃·5xx만 1회 (제안값, 스테이징 실측으로 조정)
+        - 서버 재시도: 503이 바로 온 경우만 1회 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: 선택형 입력 화면 (F-S03E)
 
@@ -99,19 +99,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/RouteResponse'
         '422':
-          description: '`LLM-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          description: '`LLM-FAIL` — 입력 때문에 실패 (요청 형식 오류). 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`LLM-FAIL` — 모델·외부 API 호출 실패. 재시도 대상'
+          description: '`LLM-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '504':
-          description: '`LLM-FAIL` — 시간 제한 초과 (8초). 재시도 대상'
+          description: '`LLM-FAIL` — 시간 제한 초과 (8초). 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -124,9 +124,9 @@ paths:
       summary: 요청한 부위가 찍혔는지 확인
       description: '- 시간 제한: 1.5초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 안 함 (1.5초라 여유 없음) (제안값, 스테이징 실측으로 조정)
+        - 서버 재시도: 안 함 (1.5초라 여유 없음) (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
-        - 실패 시 대체 경로: 판정 없이 진행
+        - 실패 시 대체 경로: 서버가 "확인 안 됨"으로 저장하고 진행
 
         - 형식 원본: `mnm-ai/schemas/part_check.json`
 
@@ -145,13 +145,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/PartCheckResponse'
         '422':
-          description: '`PART-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          description: '`PART-FAIL` — 입력 때문에 실패 (요청 형식 오류). 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`PART-FAIL` — 모델·외부 API 호출 실패. 재시도하지 않음'
+          description: '`PART-FAIL` — 외부 API·모델 호출 실패. 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -170,9 +170,9 @@ paths:
       summary: 영상 → 서기·눕기·먹기 비율
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 타임아웃·5xx만 1회 (제안값, 스테이징 실측으로 조정)
+        - 서버 재시도: 연결 실패(응답 없음)일 때만 1회. 503·504는 안 함 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
-        - 실패 시 대체 경로: 영상만 저장 후 진행
+        - 실패 시 대체 경로: 서버가 "확인 안 됨"으로 저장하고 진행
 
         - 형식 원본: `mnm-ai/schemas/behavior.json`
 
@@ -191,19 +191,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/BehaviorResponse'
         '422':
-          description: '`BEHAVIOR-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          description: '`BEHAVIOR-FAIL` — 입력 때문에 실패 (요청 형식 오류). 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`BEHAVIOR-FAIL` — 모델·외부 API 호출 실패. 재시도 대상'
+          description: '`BEHAVIOR-FAIL` — 외부 API·모델 호출 실패. 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '504':
-          description: '`BEHAVIOR-FAIL` — 시간 제한 초과 (8초). 재시도 대상'
+          description: '`BEHAVIOR-FAIL` — 시간 제한 초과 (8초). 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -216,7 +216,7 @@ paths:
       summary: 공식 지침 조항 찾기 (원문 그대로 반환)
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 타임아웃·5xx만 1회 (`RAG-NONE`은 재시도 안 함) (제안값, 스테이징 실측으로 조정)
+        - 서버 재시도: 503일 때만 1회. `RAG-NONE`(404)은 안 함 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: [바로 신고]·담당 축협 연결
 
@@ -243,13 +243,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`RAG-NONE` — 모델·외부 API 호출 실패. 재시도 대상'
+          description: '`RAG-NONE` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '504':
-          description: '`RAG-NONE` — 시간 제한 초과 (8초). 재시도 대상'
+          description: '`RAG-NONE` — 시간 제한 초과 (8초). 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -262,13 +262,13 @@ paths:
       summary: 접수자용 한 장 요약·신고서 6항목
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 안 함 (규칙 기반이라 결과 같음) (제안값, 스테이징 실측으로 조정)
+        - 서버 재시도: 안 함 (규칙 기반이라 결과 같음) (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
-        - 실패 시 대체 경로: 미정 (mnm-dev#5에서 결정)
+        - 실패 시 대체 경로: 원본 기록을 그대로 표시
 
         - 형식 원본: `mnm-ai/schemas/summary.json`
 
-        - 관련 명세: REQ-AI-12'
+        - 관련 명세: REQ-AI-05, REQ-AI-12'
       requestBody:
         required: true
         content:
@@ -283,13 +283,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/SummaryResponse'
         '422':
-          description: '`LLM-FAIL` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음'
+          description: '`LLM-FAIL` — 입력 때문에 실패 (요청 형식 오류. 신고서 빈칸은 오류가 아님(200 + `missing`)). 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`LLM-FAIL` — 모델·외부 API 호출 실패. 재시도하지 않음'
+          description: '`LLM-FAIL` — 외부 API·모델 호출 실패. 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -1119,31 +1119,41 @@ components:
       - message
       title: SummaryErrorResponse
       type: object
-    SummaryForm6:
+    SummaryForm6Draft:
       additionalProperties: false
-      description: 가축전염병 예방법 시행규칙 제13조 제1항 각 호.
+      description: 제13조 6개 항목. 서버가 넘긴 값에 빈칸이 있으면 그 칸은 null (축협 전달은 그대로 진행, REQ-AI-05).
       properties:
         owner_and_location:
+          anyOf:
+          - type: string
+          - type: 'null'
           description: 1. 소유자 성명 및 사육 장소
           title: Owner And Location
-          type: string
         species_and_head_count:
+          anyOf:
+          - type: string
+          - type: 'null'
           description: 2. 가축의 종류 및 두수
           title: Species And Head Count
-          type: string
         condition:
-          description: '3. 질병명 칸: 항상 "발견 당시 상태: …" (추정 병명 금지)'
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: '3. 질병명 칸: 값이 있으면 항상 "발견 당시 상태: …" (추정 병명 금지)'
           title: Condition
-          type: string
         found_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
           description: 4. 폐사일 또는 발견일
-          format: date
           title: Found Date
-          type: string
         reporter:
+          anyOf:
+          - type: string
+          - type: 'null'
           description: 5. 신고자 성명 및 주소
           title: Reporter
-          type: string
         other:
           default: ''
           description: 6. 그 밖의 사항
@@ -1155,7 +1165,7 @@ components:
       - condition
       - found_date
       - reporter
-      title: Form6
+      title: Form6Draft
       type: object
     SummaryLatestRecord:
       additionalProperties: false
@@ -1228,7 +1238,7 @@ components:
           type: array
         report_fields:
           additionalProperties: true
-          description: 의심 신고 상태 머신(rules/report_state_machine)의 fields, 빈칸 없음
+          description: 의심 신고 상태 머신(rules/report_state_machine)의 fields. 빈칸이 있어도 됨 (빈칸은 form6 에 null, missing 에 칸 이름)
           title: Report Fields
           type: object
         farm_total_head:
@@ -1253,9 +1263,21 @@ components:
         card:
           $ref: '#/components/schemas/SummaryCard'
         form6:
-          $ref: '#/components/schemas/SummaryForm6'
+          $ref: '#/components/schemas/SummaryForm6Draft'
+        missing:
+          description: null 인 form6 칸 이름. 빈칸이 없으면 []
+          items:
+            enum:
+            - owner_and_location
+            - species_and_head_count
+            - condition
+            - found_date
+            - reporter
+            type: string
+          title: Missing
+          type: array
         form6_text:
-          description: 인터넷 신고서 복사 텍스트 (F-S14·R-P02 '객체 + 텍스트')
+          description: 인터넷 신고서 복사 텍스트 (F-S14·R-P02 '객체 + 텍스트'). 빈칸은 '(빈칸)'
           title: Form6 Text
           type: string
       required:

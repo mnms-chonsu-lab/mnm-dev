@@ -15,24 +15,27 @@ OUT = Path(sys.argv[2])
 
 # 엔드포인트별 메타데이터 (schemas에 없는 것만)
 META = {
+    # retry503: 503(외부 API 오류)이 "바로" 왔을 때 서버가 1회 다시 부르는지
+    # retry_note: 재시도 규칙 설명. 504(시간 초과)는 모든 엔드포인트에서 재시도하지 않음
+    #   (앱 타임아웃이 8초라 다시 부르면 앱이 먼저 끊김 — mnm-dev#5 합의)
     "stt": dict(file="stt.json", prefix="Stt", summary="음성 → 글", timeout=8,
-                retry="api 실패·타임아웃만 1회", fallback="글로 쓰기 화면 (F-S02T)",
-                spec=None),
+                retry503=True, retry_note="503이 바로 온 경우만 1회",
+                fallback="글로 쓰기 화면 (F-S02T)", spec=None),
     "route": dict(file="router.json", prefix="Route", summary="농가 발화 → 일지·신고 항목 분류",
-                  timeout=8, retry="타임아웃·5xx만 1회", fallback="선택형 입력 화면 (F-S03E)",
-                  spec=None),
+                  timeout=8, retry503=True, retry_note="503이 바로 온 경우만 1회",
+                  fallback="선택형 입력 화면 (F-S03E)", spec=None),
     "part_check": dict(file="part_check.json", prefix="PartCheck", summary="요청한 부위가 찍혔는지 확인",
-                       timeout=1.5, retry="안 함 (1.5초라 여유 없음)", fallback="판정 없이 진행",
-                       spec="REQ-AI-03"),
+                       timeout=1.5, retry503=False, retry_note="안 함 (1.5초라 여유 없음)",
+                       fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-03"),
     "behavior": dict(file="behavior.json", prefix="Behavior", summary="영상 → 서기·눕기·먹기 비율",
-                     timeout=8, retry="타임아웃·5xx만 1회", fallback="영상만 저장 후 진행",
-                     spec="REQ-AI-11"),
+                     timeout=8, retry503=False, retry_note="연결 실패(응답 없음)일 때만 1회. 503·504는 안 함",
+                     fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-11"),
     "guide": dict(file="guide.json", prefix="Guide", summary="공식 지침 조항 찾기 (원문 그대로 반환)",
-                  timeout=8, retry="타임아웃·5xx만 1회 (`RAG-NONE`은 재시도 안 함)",
+                  timeout=8, retry503=True, retry_note="503일 때만 1회. `RAG-NONE`(404)은 안 함",
                   fallback="[바로 신고]·담당 축협 연결", spec=None),
     "summary": dict(file="summary.json", prefix="Summary", summary="접수자용 한 장 요약·신고서 6항목",
-                    timeout=8, retry="안 함 (규칙 기반이라 결과 같음)",
-                    fallback="미정 (mnm-dev#5에서 결정)", spec=None),
+                    timeout=8, retry503=False, retry_note="안 함 (규칙 기반이라 결과 같음)",
+                    fallback="원본 기록을 그대로 표시", spec="REQ-AI-05"),
 }
 
 components: dict = {}
@@ -92,10 +95,11 @@ for feature, m in META.items():
     if feature == "guide":
         responses["404"] = err("`RAG-NONE` — 근거 조항 없음. `detail.fallback = true`. 재시도하지 않음")
     else:
-        responses["422"] = err(f"`{code}` — 입력 때문에 실패 (예: 파일 형식·무음·신고서 빈칸). 재시도하지 않음")
-    retry_note = "재시도하지 않음" if m["retry"].startswith("안 함") else "재시도 대상"
-    responses["503"] = err(f"`{code}` — 모델·외부 API 호출 실패. {retry_note}")
-    responses["504"] = err(f"`{code}` — 시간 제한 초과 ({m['timeout']}초). {retry_note}")
+        example = {"stt": "파일 형식·60초 초과·무음", "summary": "요청 형식 오류. 신고서 빈칸은 오류가 아님(200 + `missing`)"}
+        responses["422"] = err(f"`{code}` — 입력 때문에 실패 ({example.get(feature, '요청 형식 오류')}). 재시도하지 않음")
+    responses["503"] = err(f"`{code}` — 외부 API·모델 호출 실패. "
+                           + ("바로 온 경우 서버가 1회 재시도" if m["retry503"] else "재시도하지 않음"))
+    responses["504"] = err(f"`{code}` — 시간 제한 초과 ({m['timeout']}초). 재시도하지 않음")
 
     paths[ep] = {"post": {
         "operationId": feature,
@@ -103,7 +107,7 @@ for feature, m in META.items():
         "summary": m["summary"],
         "description": "\n".join([
             f"- 시간 제한: {m['timeout']}초 (`common.TIMEOUT_SEC`)",
-            f"- 서버 재시도: {m['retry']} (제안값, 스테이징 실측으로 조정)",
+            f"- 서버 재시도: {m['retry_note']} (mnm-dev#5 합의, 스테이징 실측으로 조정)",
             f"- 실패 시 대체 경로: {m['fallback']}",
             f"- 형식 원본: `mnm-ai/schemas/{m['file']}`",
             f"- 관련 명세: {m['spec'] + ', ' if m['spec'] else ''}REQ-AI-12",
