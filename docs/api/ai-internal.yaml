@@ -122,9 +122,12 @@ paths:
       tags:
       - AI 내부
       summary: 요청한 부위가 찍혔는지 확인
-      description: '- 시간 제한: 1.5초 (`common.TIMEOUT_SEC`)
+      description: '- 시간 제한: 10초
 
-        - 서버 재시도: 안 함 (1.5초라 여유 없음) (mnm-dev#5 합의, 스테이징 실측으로 조정)
+        - 모델(SigLIP 2) 목표 속도 p95 1.5초. 넘거나 추론 오류면 같은 호출 안에서 OpenAI Vision으로 판정하고 `fallback: true` (`PART_FALLBACK_VISION=1`,
+        실측 약 1초·최대 8초). 앱은 최대 3초 기다리고, 늦게 온 결과는 요약 화면(F-S11)에 표시 (#15 유민님 정리)
+
+        - 서버 재시도: 안 함 (대체 경로가 같은 호출 안에서 처리) (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: 서버가 "확인 안 됨"으로 저장하고 진행
 
@@ -157,7 +160,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AiError'
         '504':
-          description: '`PART-FAIL` — 시간 제한 초과 (1.5초). 재시도하지 않음'
+          description: '`PART-FAIL` — 시간 제한 초과 (10초). 재시도하지 않음'
           content:
             application/json:
               schema:

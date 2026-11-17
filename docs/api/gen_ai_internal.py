@@ -25,8 +25,12 @@ META = {
                   timeout=8, retry503=True, retry_note="503이 바로 온 경우만 1회",
                   fallback="선택형 입력 화면 (F-S03E)", spec=None),
     "part_check": dict(file="part_check.json", prefix="PartCheck", summary="요청한 부위가 찍혔는지 확인",
-                       timeout=1.5, retry503=False, retry_note="안 함 (1.5초라 여유 없음)",
-                       fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-03"),
+                       timeout=10, retry503=False,
+                       retry_note="안 함 (대체 경로가 같은 호출 안에서 처리)",
+                       fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-03",
+                       note=("모델(SigLIP 2) 목표 속도 p95 1.5초. 넘거나 추론 오류면 같은 호출 안에서 "
+                             "OpenAI Vision으로 판정하고 `fallback: true` (`PART_FALLBACK_VISION=1`, 실측 약 1초·최대 8초). "
+                             "앱은 최대 3초 기다리고, 늦게 온 결과는 요약 화면(F-S11)에 표시 (#15 유민님 정리)")),
     "behavior": dict(file="behavior.json", prefix="Behavior", summary="영상 → 서기·눕기·먹기 비율",
                      timeout=8, retry503=False, retry_note="연결 실패(응답 없음)일 때만 1회. 503·504는 안 함",
                      fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-11"),
@@ -106,7 +110,8 @@ for feature, m in META.items():
         "tags": ["AI 내부"],
         "summary": m["summary"],
         "description": "\n".join([
-            f"- 시간 제한: {m['timeout']}초 (`common.TIMEOUT_SEC`)",
+            f"- 시간 제한: {m['timeout']}초" + ("" if m.get("note") else " (`common.TIMEOUT_SEC`)"),
+            *([f"- {m['note']}"] if m.get("note") else []),
             f"- 서버 재시도: {m['retry_note']} (mnm-dev#5 합의, 스테이징 실측으로 조정)",
             f"- 실패 시 대체 경로: {m['fallback']}",
             f"- 형식 원본: `mnm-ai/schemas/{m['file']}`",
