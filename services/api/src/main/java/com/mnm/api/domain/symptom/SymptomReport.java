@@ -1,5 +1,6 @@
 package com.mnm.api.domain.symptom;
 
+import com.mnm.api.domain.common.BaseTimeEntity;
 import com.mnm.api.domain.farm.Cow;
 import com.mnm.api.domain.farm.FarmInfo;
 import jakarta.persistence.Column;
@@ -15,7 +16,6 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -24,7 +24,7 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "symptom_report")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SymptomReport {
+public class SymptomReport extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,8 +53,4 @@ public class SymptomReport {
 
     @Column(length = 50)
     private String barn;
-
-    @Generated
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
 }

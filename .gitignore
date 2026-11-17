@@ -19,7 +19,7 @@ build/
 .env.*
 !.env.example
 
-# 모델 가중치 / 원본 데이터 (S3·MLflow 사용, git에 넣지 않음)
+# 모델 가중치 / 원본 데이터 (Object Storage·MLflow 사용, git에 넣지 않음)
 *.pt
 *.pth
 *.onnx

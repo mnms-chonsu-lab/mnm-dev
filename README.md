@@ -7,7 +7,8 @@
     <img src="https://img.shields.io/badge/Spring%20Boot-Backend-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot" />
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" alt="Docker" />
-    <img src="https://img.shields.io/badge/AWS-Deploy-232F3E?logo=amazonaws&logoColor=white" alt="AWS" />
+    <img src="https://img.shields.io/badge/NAVER%20Cloud-Deploy-03C75A?logo=naver&logoColor=white" alt="NAVER Cloud" />
+    <img src="https://img.shields.io/badge/GHCR-Images-181717?logo=github&logoColor=white" alt="GHCR" />
   </p>
   <sub>팀 M&amp;M's · 공모전 본선 MVP · 조직 <a href="https://github.com/mnms-chonsu-lab">mnms-chonsu-lab</a></sub>
 </div>
@@ -40,7 +41,7 @@
 
 그 외: 전체 `docker-compose.yml`, 배포 인프라(`infra/`), API 명세(`docs/api/openapi.yaml`).
 
-> 현재 상태: 디렉터리 골격과 README만 있고 애플리케이션 코드는 아직 없습니다. 아래 🚧 표시는 모두 구현 예정입니다.
+> 현재 상태: Spring Boot 뼈대·엔티티·공통 응답/오류 처리·스테이징 배포까지 구성됐고, 기능 API는 구현 중입니다. 🚧 표시는 아직 구현 전입니다.
 
 ---
 
@@ -54,31 +55,33 @@ cp .env.example .env      # 키 값 채우기
 
 | 단계 | 명령 | 상태 |
 | --- | --- | --- |
-| 전체 실행 | `docker compose up -d` | 🚧 구현 예정 (`docker-compose.yml`은 뼈대, `services/api` Dockerfile 없음) |
-| 백엔드 | `services/api/` 빌드·실행 | 🚧 구현 예정 (Spring Boot 프로젝트 없음) |
+| 백엔드 실행 | `cd services/api && ./gradlew bootRun` (JDK 21) | 동작 — 자세한 내용은 [services/api/README.md](./services/api/README.md) |
+| 백엔드 테스트 | `cd services/api && ./gradlew build` | 동작 — PR CI(`ci.yml`)와 같은 명령 |
+| 전체 실행 | `docker compose up -d` | 🚧 뼈대만 있음 (`docker-compose.yml`의 `mnm-ai` 이미지·DB 초기화는 미확인) |
 
-`docker-compose.yml` 구성: `db`(postgres:16), `api`(`services/api` 빌드, 포트 `8080`), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 `GHCR_READ_TOKEN`으로 로그인해야 받을 수 있습니다.
+`docker-compose.yml` 구성: `db`(postgres:16), `api`(`services/api` 빌드, 포트 `8080`), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 패키지 읽기 권한이 있는 토큰으로 `docker login ghcr.io` 한 뒤에 받을 수 있습니다.
 
-> 모델 가중치·원본 데이터는 git에 넣지 않습니다. S3 / MLflow에서 가져와 사용합니다.
+> 모델 가중치·원본 데이터는 git에 넣지 않습니다. Object Storage / MLflow에서 가져와 사용합니다.
 
 ---
 
 ## 환경변수
 
 값은 `.env.example`을 복사해 `.env`에 채웁니다. 실제 키는 커밋하지 않습니다.
+지금 코드·설정이 읽는 키만 적었습니다. 인증(JWT)·AI 연동·파일 저장소 키는 해당 기능을 붙이는 PR에서 추가합니다.
 
 | 변수 | 위치 | 용도 | 없으면 |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | `services/api` | PostgreSQL 접속 문자열 | API가 DB에 연결하지 못함 |
-| `JWT_SECRET` | `services/api` | 인증 토큰 서명 | 로그인·인증 불가 |
-| `AWS_ACCESS_KEY_ID` | `services/api`, 배포 | AWS 자격 증명 | S3 업로드·배포 불가 |
-| `AWS_SECRET_ACCESS_KEY` | `services/api`, 배포 | AWS 자격 증명 | S3 업로드·배포 불가 |
-| `AWS_REGION` | `services/api`, 배포 | AWS 리전 | S3 업로드·배포 불가 |
-| `S3_BUCKET_NAME` | `services/api` | 사진·음성 업로드 버킷 | 파일 업로드 불가 |
-| `MNM_AI_SERVICE_URL` | `services/api` | mnm-ai 추론·에이전트 서비스 주소 | AI 기능 호출 불가 |
-| `GHCR_READ_TOKEN` | 로컬·배포 | private GHCR의 `mnm-ai-*` 이미지 pull | mnm-ai 이미지를 받지 못함 |
+| `DATABASE_URL` | `services/api` | PostgreSQL 접속 문자열 (JDBC 형식) | API가 뜨지 않음 |
+| `DATABASE_USERNAME` | `services/api` | DB 사용자 | API가 뜨지 않음 |
+| `DATABASE_PASSWORD` | `services/api` | DB 비밀번호 | API가 뜨지 않음 |
+| `JPA_DDL_AUTO` | `services/api` | 엔티티-테이블 검사 방식 | 기본 `validate` (테이블 없는 DB는 `none`) |
+| `CORS_ALLOWED_ORIGINS` | `services/api` | 다른 도메인에서 API를 부를 프론트 주소 (쉼표 구분) | CORS 꺼짐 (같은 도메인 호출만 가능) |
+| `POSTGRES_PASSWORD` | 로컬 `docker-compose.yml` | 로컬 postgres 비밀번호 | 기본값 `mnm` |
+| `DOMAIN` | 배포 서버 | nginx HTTPS 인증서 도메인 | HTTPS 인증서 발급 불가 |
+| `IMAGE_TAG` | 배포 서버 | 띄울 `mnm-api` 이미지 태그 (보통 `deploy.yml`이 지정) | `develop` 태그 사용 |
 
-`docker-compose.yml`은 `POSTGRES_PASSWORD`도 읽습니다 (기본값 있음, `.env.example`에는 없음).
+`.env`는 `.gitignore`에 있어 커밋되지 않습니다.
 
 ---
 
@@ -86,11 +89,12 @@ cp .env.example .env      # 키 값 채우기
 
 | 영역 | 기술 | 용도 |
 | --- | --- | --- |
-| 백엔드 | Java · Spring Boot | REST API (버전·빌드 도구 미정) |
+| 백엔드 | Java 21 · Spring Boot 4.1 · Gradle | REST API, 스웨거(springdoc) |
 | DB | PostgreSQL 16 | 일지·신고서·요약 카드 저장 (스키마는 `mnm-data/migrations`) |
-| 저장소 | AWS S3 | 사진·음성 파일 |
-| 배포 | Docker, AWS, GitHub Actions | 컨테이너 실행·운영 배포 |
-| 모니터링 | CloudWatch | 운영 로그·지표 |
+| 파일 저장소 | 네이버 클라우드 Object Storage (🚧 구축 전) | 사진·음성·영상 원본 (DB에는 경로만) |
+| 배포 | Docker, nginx, GitHub Actions, 네이버 클라우드 서버 | `develop` 머지 → 스테이징 자동 배포 (HTTPS: Let's Encrypt) |
+| 모니터링 | 🚧 미정 | 운영 로그·지표, 5xx 알람 (REQ-OPS-06) |
+| 이미지 저장소 | GHCR (`ghcr.io/mnms-chonsu-lab/*`) | `mnm-api` 배포 이미지, `mnm-ai` 추론 이미지 |
 | AI 연동 | `mnm-ai` 이미지 (GHCR) | 에이전트·규칙·인식 모델 호출 |
 
 ---
@@ -102,12 +106,12 @@ mnm-dev/
 ├── services/
 │   └── api/               # Spring Boot 백엔드 — @joobogyeong, @dooooing
 ├── infra/
-│   ├── docker/            # Dockerfile·compose 보조 설정
-│   └── aws/               # AWS 배포 구성
+│   ├── docker/            # 스테이징 배포 compose · nginx 설정
+│   └── ncp/               # 네이버 클라우드 리소스 구성 기록 (서버 · Cloud DB · Object Storage)
 ├── docs/
 │   ├── api/               # openapi.yaml — API 명세의 기준 문서
 │   └── decisions/         # 설계·의사결정 기록
-├── .github/               # 이슈·PR 템플릿, CODEOWNERS, 라벨
+├── .github/               # 이슈·PR 템플릿, CODEOWNERS, 라벨, ci.yml · deploy.yml
 ├── docker-compose.yml     # 전체 실행 뼈대 (api, db, mnm-ai)
 ├── .env.example           # 환경변수 키 이름
 ├── CONTRIBUTING.md · CLAUDE.md · AGENTS.md
@@ -188,18 +192,23 @@ mnm-dev/
 
 자세한 규칙: [CONTRIBUTING.md](./CONTRIBUTING.md) · AI 도구 사용 시: [CLAUDE.md](./CLAUDE.md), [AGENTS.md](./AGENTS.md)
 
-### 배포 Secrets (예정)
+### CI · 배포
 
-`.github/workflows/`는 비워뒀고, 배포(`deploy.yml`)는 @dooooing이 구현 시 추가합니다. 필요한 Secrets 이름:
+| 워크플로 | 언제 | 하는 일 |
+| --- | --- | --- |
+| `ci.yml` | `develop`·`main` 대상 PR (`services/api/**` 변경 시) | `./gradlew build` (테스트 포함) |
+| `deploy.yml` | `develop` push (`services/api/**`, `infra/docker/**` 변경 시) · 수동 실행 | 이미지 빌드 → GHCR → 스테이징 서버 `docker compose up` → `/health` 확인 |
+
+GitHub Secrets (값은 @dooooing 관리):
 
 | Secret | 용도 |
 | --- | --- |
-| `AWS_ACCESS_KEY_ID` | AWS 배포용 자격 증명 |
-| `AWS_SECRET_ACCESS_KEY` | AWS 배포용 자격 증명 |
-| `AWS_REGION` | 배포 리전 |
-| `DATABASE_URL` | 운영 DB 접속 문자열 |
-| `GHCR_READ_TOKEN` | `mnm-ai` 이미지 pull용 (private GHCR) |
-| `S3_BUCKET_NAME` | 업로드 파일 버킷 |
+| `DEPLOY_HOST` | 스테이징 서버 주소 |
+| `DEPLOY_USER` | 서버 SSH 사용자 |
+| `DEPLOY_SSH_KEY` | 서버 SSH 개인 키 |
+
+- GHCR 로그인은 워크플로 기본 `GITHUB_TOKEN`을 씁니다.
+- 앱 환경변수(`DATABASE_*`, `DOMAIN` 등)는 Secrets가 아니라 서버의 `~/mnm/.env`에 둡니다.
 
 ---
 
@@ -215,4 +224,4 @@ mnm-dev/
 | 부위 판정 이미지 | FMD Cattle, Cattle side/back view | 부위 일치 검증 모델(SigLIP 2) 학습·평가 | FMD Cattle: **CC BY 4.0** (출처 표기). Cattle side/back view: 🚧 라이선스 확인 중 |
 
 > 🚧 레포 자체 라이선스는 아직 정하지 않았습니다. 정해지면 이 절에 추가합니다.
-> 원본 데이터·모델 가중치는 git에 넣지 않고 S3 / MLflow에서 관리합니다.
+> 원본 데이터·모델 가중치는 git에 넣지 않고 Object Storage / MLflow에서 관리합니다.

@@ -1,5 +1,6 @@
 package com.mnm.api.domain.alert;
 
+import com.mnm.api.domain.common.BaseTimeEntity;
 import com.mnm.api.domain.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,14 +15,13 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Generated;
 
 /** 알림 + 농가 피드백. */
 @Entity
 @Table(name = "alerts")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Alert {
+public class Alert extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,10 +49,6 @@ public class Alert {
     /** seen | ok */
     @Column(length = 10)
     private String feedback;
-
-    @Generated
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
 
     @Column(name = "read_at")
     private Instant readAt;

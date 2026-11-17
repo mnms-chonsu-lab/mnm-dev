@@ -1,5 +1,6 @@
 package com.mnm.api.domain.user;
 
+import com.mnm.api.domain.common.BaseTimeEntity;
 import com.mnm.api.domain.org.ReceiverOrg;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,14 +15,13 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Generated;
 
 /** 로그인 계정 (농가 · 접수자 · 운영자). name, phone은 개인정보. */
 @Entity
 @Table(name = "users")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User {
+public class User extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -69,10 +69,6 @@ public class User {
     /** 5회 실패 시 10분 잠금 */
     @Column(name = "locked_until")
     private Instant lockedUntil;
-
-    @Generated
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
