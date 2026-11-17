@@ -14,14 +14,14 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | `admin` | 어드민 컨트롤러·서비스·리포지토리·DTO | `/api/admin/**` |
 | `auth` | 로그인·내 계정 | `/api/auth/**` |
 | `domain` | DB 테이블과 1:1인 엔티티 (세 플랫폼이 공유). `domain/common`에 `BaseTimeEntity` | - |
-| `global/config` | `ApiPaths`(경로 접두사), `OpenApiConfig`(스웨거), `WebConfig`(CORS) | - |
+| `global/config` | `ApiPaths`(경로 접두사), `OpenApiConfig`(스웨거), `WebConfig`(CORS), `SecurityConfig`(토큰·역할별 접근) | - |
 | `global/response` | `BaseResponse`, `PageResponse` | - |
 | `global/error` | `ErrorCode`, `BusinessException`, `ErrorResponse`, `GlobalExceptionHandler`, `ApiErrorController` | - |
 | `global/web` | `RequestIdFilter` | - |
 
 - 플랫폼 패키지(`farmer`·`receiver`·`admin`·`auth`)끼리는 서로 참조하지 않습니다. 함께 쓰는 것은 `domain`과 `global`뿐입니다.
 - API 경로는 `ApiPaths` 접두사 아래에만 둡니다. 다른 `/api/**` 경로는 nginx가 404로 막습니다.
-- 엔티티는 `mnm-data/migrations/0001_init_operational.sql` 기준입니다. 스키마가 바뀌면 엔티티를 맞춥니다. 이 레포에서 테이블을 바꾸지 않습니다.
+- 엔티티는 `mnm-data/migrations` 기준입니다. 스키마가 바뀌면 엔티티를 맞춥니다. 이 레포에서 테이블을 바꾸지 않습니다.
 - 서버가 뜰 때 엔티티와 실제 테이블이 맞는지 검사합니다(`JPA_DDL_AUTO`, 기본 `validate`). 맞지 않으면 서버가 뜨지 않습니다.
 
 ## 공통 규칙 (`global/`)
@@ -72,6 +72,28 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | CORS | `CORS_ALLOWED_ORIGINS`(쉼표 구분)에 적은 주소만 `/api/**` 허용. 비우면 CORS 꺼짐 | `WebConfig` |
 | 로그 | 요청 처리 중 로그 줄마다 `[request_id]` | `logging.pattern.level` |
 
+## 인증 (`SecurityConfig`, `auth`)
+
+| 항목 | 값 |
+| --- | --- |
+| 로그인 | 농가 `POST /api/auth/farmer/login`(농장식별번호 + 휴대폰 번호), 접수자·운영자 `POST /api/auth/login`(아이디·비밀번호) |
+| 토큰 | JWT(HS256, `JWT_SECRET`). claim: `sub`=`users_id`, `role`, `must_change_pw`. 농가 30일, 접수자·운영자 8시간. 갱신 토큰 없음 |
+| 역할별 경로 | `/api/farmer/**` 농가 · `/api/receiver/**` 접수자 · `/api/admin/**` 운영자 · `/api/auth/**` 로그인한 누구나 |
+| 임시 비밀번호 | `must_change_pw=true` 토큰은 역할 권한이 없어 `/api/auth/**`만 쓸 수 있음 → `POST /api/auth/password` 후 새 토큰 |
+| 잠금 | 연속 5번 틀리면 10분(`users.failed_count`, `locked_until`). 잠긴 동안은 맞게 넣어도 `AUTH-LOCK` |
+| 오류 | 토큰 없음·만료·위조 `AUTH-401`, 역할 불일치·정지 계정 `AUTH-403`, 정보 불일치 `AUTH-FAIL` |
+| 컨트롤러에서 내 계정 | `@AuthenticationPrincipal Jwt jwt` → `Long.valueOf(jwt.getSubject())` |
+
+## DB 마이그레이션 (Flyway)
+
+- 서버가 시작할 때 Flyway 가 `src/main/resources/db/migration`(스키마)과 `db/seed`(시연용 계정)를 적용한 뒤, Hibernate 가 엔티티와 테이블을 검사합니다.
+- `db/migration/V{n}__*.sql`은 `mnm-data/migrations/{000n}_*.sql`의 사본입니다(`BEGIN;`·`COMMIT;` 두 줄만 뺌, Flyway 가 파일마다 트랜잭션으로 감쌈). 직접 고치지 않습니다. mnm-data 에 새 번호 파일이 머지되면 다음 `V` 번호로 복사해 넣습니다.
+- Flyway 는 테이블을 만들고 고치므로 owner 급 계정이 필요합니다. 앱 계정(`DATABASE_USERNAME`)을 읽기·쓰기 전용으로 나누면 `SPRING_FLYWAY_USER`·`SPRING_FLYWAY_PASSWORD`에 owner 계정을 넣습니다(코드 수정 없음). 앱 계정에는 owner 가 만든 테이블·시퀀스 권한과 `ALTER DEFAULT PRIVILEGES`(이후 생길 테이블 권한)를 줘야 합니다.
+- 적용된 파일은 `flyway_schema_history`에 체크섬과 함께 남습니다. 이미 적용된 `V` 파일을 고치면 서버가 뜨지 않습니다.
+- Flyway 도입 전에 psql 로 0001~0003을 넣어 둔 DB(스테이징)는 처음 뜰 때 V3 까지 적용된 것으로 기록하고(baseline) 그 다음부터 실행합니다. 빈 DB 는 V1 부터 실행합니다.
+- `db/seed/R__seed_demo_accounts.sql`은 내용이 바뀔 때마다 다시 실행되며, 이미 있는 기관·농장·아이디는 건드리지 않습니다. 실서비스 DB 는 `FLYWAY_LOCATIONS=classpath:db/migration`으로 시드를 뺍니다.
+- 시연 계정의 임시 비밀번호 원문은 레포에 두지 않습니다(담당자가 따로 전달). 바꾸려면 BCrypt 해시를 새로 만들어 시드 파일을 고칩니다. 이미 만들어진 계정에는 반영되지 않습니다.
+
 ## 새 API 추가 순서
 
 1. 해당 플랫폼 패키지(`farmer` 등)에 요청·응답 `record` DTO를 만듭니다. 검증 어노테이션과 명세 칸별 문구를 넣습니다.
@@ -83,7 +105,7 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 
 ## 로컬 실행
 
-JDK 21이 필요합니다. 레포 루트의 `.env`(키 목록은 `.env.example`)에 `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`를 채운 뒤 실행합니다. 테이블이 아직 없는 DB면 `JPA_DDL_AUTO=none`으로 띄웁니다.
+JDK 21이 필요합니다. 레포 루트의 `.env`(키 목록은 `.env.example`)에 `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `JWT_SECRET`을 채운 뒤 실행합니다. 빈 DB 면 Flyway 가 테이블과 시연용 계정을 만듭니다. DB 는 pgvector 확장이 있어야 합니다(로컬은 `docker compose up -d db`).
 
 ```bash
 ./gradlew bootRun
@@ -101,7 +123,8 @@ JDK 21이 필요합니다. 레포 루트의 `.env`(키 목록은 `.env.example`)
 ```
 
 - 테스트 포함 빌드입니다. PR의 CI(`.github/workflows/ci.yml`)도 같은 명령을 돌립니다.
-- `CommonResponseTest`는 DB 없이 전체 설정을 띄워 공통 응답·오류·`request_id`·스웨거·CORS를 확인합니다. DB 없이 컨텍스트를 띄우는 속성 설정은 이 클래스를 참고합니다.
+- `CommonResponseTest`는 DB 없이 전체 설정을 띄워 공통 응답·오류·`request_id`·스웨거·CORS를 확인합니다. DB 없이 띄우려면 `@ActiveProfiles("nodb")`(`src/test/resources/application-nodb.properties`)를 씁니다.
+- 역할이 필요한 경로는 `TestTokens.bearer(jwtEncoder, "farmer")`로 만든 토큰을 붙입니다. 리포지토리가 필요한 서비스는 `AuthApiTest`처럼 `@MockitoBean`으로 바꿉니다.
 - 엔티티와 실제 테이블이 맞는지(`validate`)는 DB가 있어야 확인됩니다. 스테이징 배포의 헬스 체크로 확인합니다.
 
 ## 배포

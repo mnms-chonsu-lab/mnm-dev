@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -72,4 +73,37 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
+
+    /** 연속으로 틀리면 잠그는 횟수와 잠금 시간 (기능명세서 AUTH-LOCK) */
+    public static final int MAX_FAILED_COUNT = 5;
+    public static final Duration LOCK_DURATION = Duration.ofMinutes(10);
+
+    public boolean isLocked(Instant now) {
+        return lockedUntil != null && lockedUntil.isAfter(now);
+    }
+
+    public boolean isActive() {
+        return "active".equals(status);
+    }
+
+    /** 틀린 횟수를 올리고, 5번째면 10분 잠근다. 잠그면 횟수는 0부터 다시 센다 */
+    public void recordLoginFailure(Instant now) {
+        failedCount++;
+        if (failedCount >= MAX_FAILED_COUNT) {
+            failedCount = 0;
+            lockedUntil = now.plus(LOCK_DURATION);
+        }
+    }
+
+    public void recordLoginSuccess(Instant now) {
+        failedCount = 0;
+        lockedUntil = null;
+        lastLoginAt = now;
+    }
+
+    /** 임시 비밀번호를 새 비밀번호로 바꾼다 (R-S06). 인자는 해시값 */
+    public void changePassword(String newPasswordHash) {
+        passwordHash = newPasswordHash;
+        mustChangePw = false;
+    }
 }
