@@ -36,8 +36,6 @@ public enum ErrorCode {
     TRACE_API_FAIL("TRACE-API-FAIL", HttpStatus.BAD_GATEWAY, "지금은 소 정보를 불러올 수 없어요. 성별과 출생일만 넣어 주세요."),
     /** 수신함 전달 저장 실패 → 완료로 넘기지 않고 [다시 시도] [전화로 신고] [나중에 보내기] */
     DELIVER_FAIL("DELIVER-FAIL", HttpStatus.INTERNAL_SERVER_ERROR, "아직 보내지 못했어요. 다시 보내거나 전화로 신고해 주세요."),
-    /** 점검 중. 재개 시각이 있으면 "{재개 시각}에 다시 열려요"로 바꿔 넘긴다 */
-    MAINTENANCE("MAINT-503", HttpStatus.SERVICE_UNAVAILABLE, "지금은 점검 중이에요. 곧 다시 열려요. 급하면 바로 신고 전화를 이용해 주세요."),
 
     SERVER_ERROR("SRV-5XX", HttpStatus.INTERNAL_SERVER_ERROR, "잠시 문제가 생겼어요. 입력하신 내용은 그대로 있어요. 다시 시도해 주세요.");
 

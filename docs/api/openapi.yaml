@@ -55,7 +55,6 @@ components:
             | CATTLE-OTHER-FARM | 409 | 다른 농장에 등록된 소 (농가 확인 후 다시 요청) |
             | TRACE-API-FAIL | 502 | 축산물이력제 조회 실패 (직접 입력으로 등록) |
             | DELIVER-FAIL | 500 | 수신함 전달 실패 |
-            | MAINT-503 | 503 | 서비스 점검 중 |
             | SRV-5XX | 500 | 서버 오류 |
           example: VALID-422
         message:

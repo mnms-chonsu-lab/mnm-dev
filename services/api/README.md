@@ -53,11 +53,10 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | `CATTLE-OTHER-FARM` | 409 | 다른 농장에 등록된 소 (농가 확인 후 다시 요청) |
 | `TRACE-API-FAIL` | 502 | 축산물이력제 조회 실패 (직접 입력으로 등록) |
 | `DELIVER-FAIL` | 500 | 수신함 전달 실패 |
-| `MAINT-503` | 503 | 서비스 점검 중 |
 | `SRV-5XX` | 500 | 처리하지 못한 예외 (원인은 로그에만) |
 
 - `message`는 명세의 "농가 문구"입니다. 접수자 웹·어드민은 `code`를 보고 화면 문구를 따로 정합니다.
-- 문구 속 `{중괄호}`(예: `{남은 분}`, `{재개 시각}`)는 변수입니다. 값을 채운 문구는 `new BusinessException(code, message, detail)`로 넘깁니다.
+- 문구 속 `{중괄호}`(예: `{남은 분}`)는 변수입니다. 값을 채운 문구는 `new BusinessException(code, message, detail)`로 넘깁니다.
 - 새 문구는 명세 문구 규칙을 따릅니다: 해요체, "무엇이 안 됐는지 + 지금 할 수 있는 것", 금지 표현(진단·확률·위험도·이상·질병 의심·감염·양성·판정·자동 신고) 없음. `ErrorCodeTest`가 확인합니다.
 - `STT-FAIL`·`LLM-FAIL`·`PART-FAIL`·`BEHAVIOR-FAIL`·`RAG-NONE`은 AI 서비스가 이 서버에 주는 코드입니다. 서버가 대체 경로로 처리하고 클라이언트 오류로 내보내지 않습니다.
 
