@@ -31,7 +31,7 @@
 | --- | --- | --- |
 | `services/api/` | Spring Boot 백엔드 (Java 21 · Spring Boot 4.1 · Gradle · PostgreSQL) | @joobogyeong, @dooooing |
 | `infra/docker/` | 스테이징 배포용 compose(`compose.deploy.yml`) · nginx 설정 | @dooooing |
-| `infra/aws/` | AWS 리소스 정의 (아직 비어 있음) | @dooooing |
+| `infra/aws/` | 비어 있음. 배포는 네이버 클라우드 서버 + GHCR 이미지 (정리 여부 확인 중) | @dooooing |
 | `.github/` | 이슈·PR 템플릿, CODEOWNERS, `ci.yml`(PR 빌드), `deploy.yml`(`develop` 머지 → 스테이징 배포) | @dooooing |
 | `docs/api/openapi.yaml` | API 명세의 기준 문서 (공통 응답·오류 형식 포함) | @joobogyeong, @dooooing |
 | `docs/decisions/` | 결정 기록 (파일당 1건) | @joobogyeong, @dooooing |
@@ -76,7 +76,7 @@
 ### 로그·보안
 - 이름·휴대폰 번호·농장식별번호 등 개인정보와 요청 본문을 로그에 남기지 않습니다.
 - 요청 처리 중 남긴 로그 줄에는 `request_id`가 자동으로 붙습니다(`RequestIdFilter`). 로그 형식을 바꾸지 않습니다.
-- 비밀값은 환경변수로만 받습니다(`application.yml`에서 `${KEY}`). 새 환경변수는 `.env.example`에 키 이름만 추가하고 값은 커밋하지 않습니다.
+- 비밀값은 환경변수로만 받습니다(`application.yml`에서 `${KEY}`). 새 환경변수는 그 키를 읽는 코드를 넣는 PR에서 `.env.example`에 키 이름만 추가하고 값은 커밋하지 않습니다. 아직 쓰지 않는 키는 미리 넣지 않습니다.
 
 ### 테스트·확인
 - PR 전에 `services/api`에서 `./gradlew build`(테스트 포함)가 통과해야 합니다. CI(`ci.yml`)도 같은 명령을 돌립니다.
@@ -87,7 +87,7 @@
 - 질병 판정·확률·자동 신고로 읽히는 표현을 코드/문서/안내 문구에 쓰지 않습니다.
 - 안내 문구는 공식 자료(SOP·법령) 원문만 사용합니다. (근거는 `mnm-data/knowledge-base/` 참고)
 - 농가가 승인한 기록만 접수자에게 전달합니다.
-- 모델 가중치·원본 데이터는 git에 커밋하지 않습니다. S3 / MLflow를 사용합니다.
+- 모델 가중치·원본 데이터는 git에 커밋하지 않습니다. Object Storage / MLflow를 사용합니다.
 - API 키·농가 개인정보를 코드·로그·커밋에 남기지 않습니다.
 
 ## 연결된 다른 레포
