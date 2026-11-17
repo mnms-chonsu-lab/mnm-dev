@@ -31,7 +31,7 @@
 | --- | --- | --- |
 | `services/api/` | Spring Boot 백엔드 (Java 21 · Spring Boot 4.1 · Gradle · PostgreSQL) | @joobogyeong, @dooooing |
 | `infra/docker/` | 스테이징 배포용 compose(`compose.deploy.yml`) · nginx 설정 | @dooooing |
-| `infra/aws/` | 비어 있음. 배포는 네이버 클라우드 서버 + GHCR 이미지 (정리 여부 확인 중) | @dooooing |
+| `infra/ncp/` | 네이버 클라우드 리소스 구성 기록 (서버 · Cloud DB · ACG · Object Storage 예정) | @dooooing |
 | `.github/` | 이슈·PR 템플릿, CODEOWNERS, `ci.yml`(PR 빌드), `deploy.yml`(`develop` 머지 → 스테이징 배포) | @dooooing |
 | `docs/api/openapi.yaml` | API 명세의 기준 문서 (공통 응답·오류 형식 포함) | @joobogyeong, @dooooing |
 | `docs/decisions/` | 결정 기록 (파일당 1건) | @joobogyeong, @dooooing |

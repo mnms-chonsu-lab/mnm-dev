@@ -77,9 +77,11 @@ cp .env.example .env      # 키 값 채우기
 | `DATABASE_PASSWORD` | `services/api` | DB 비밀번호 | API가 뜨지 않음 |
 | `JPA_DDL_AUTO` | `services/api` | 엔티티-테이블 검사 방식 | 기본 `validate` (테이블 없는 DB는 `none`) |
 | `CORS_ALLOWED_ORIGINS` | `services/api` | 다른 도메인에서 API를 부를 프론트 주소 (쉼표 구분) | CORS 꺼짐 (같은 도메인 호출만 가능) |
+| `POSTGRES_PASSWORD` | 로컬 `docker-compose.yml` | 로컬 postgres 비밀번호 | 기본값 `mnm` |
 | `DOMAIN` | 배포 서버 | nginx HTTPS 인증서 도메인 | HTTPS 인증서 발급 불가 |
+| `IMAGE_TAG` | 배포 서버 | 띄울 `mnm-api` 이미지 태그 (보통 `deploy.yml`이 지정) | `develop` 태그 사용 |
 
-`docker-compose.yml`은 `POSTGRES_PASSWORD`도 읽습니다 (기본값 있음, `.env.example`에는 없음).
+`.env`는 `.gitignore`에 있어 커밋되지 않습니다.
 
 ---
 
@@ -105,7 +107,7 @@ mnm-dev/
 │   └── api/               # Spring Boot 백엔드 — @joobogyeong, @dooooing
 ├── infra/
 │   ├── docker/            # 스테이징 배포 compose · nginx 설정
-│   └── aws/               # 비어 있음 (배포는 네이버 클라우드 — 정리 여부 @dooooing 확인)
+│   └── ncp/               # 네이버 클라우드 리소스 구성 기록 (서버 · Cloud DB · Object Storage)
 ├── docs/
 │   ├── api/               # openapi.yaml — API 명세의 기준 문서
 │   └── decisions/         # 설계·의사결정 기록
