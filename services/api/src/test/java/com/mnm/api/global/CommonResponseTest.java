@@ -96,6 +96,16 @@ class CommonResponseTest {
     }
 
     @Test
+    void Idempotency_Key_가_없으면_VALID_422() throws Exception {
+        mvc.perform(post(BASE + "/deliver"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALID-422"));
+
+        mvc.perform(post(BASE + "/deliver").header("Idempotency-Key", "a1b2c3"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void BusinessException_은_해당_코드와_detail() throws Exception {
         mvc.perform(get(BASE + "/business"))
                 .andExpect(status().isConflict())

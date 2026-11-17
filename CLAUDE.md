@@ -51,7 +51,11 @@
 - 엔티티를 응답으로 그대로 내보내지 않습니다. 요청·응답은 `record` DTO로 만듭니다.
 - 오류는 `throw new BusinessException(ErrorCode.XXX, "개발용 detail")`로만 냅니다. 컨트롤러에서 try-catch로 오류 본문을 직접 만들거나 `ResponseEntity`에 다른 오류 형식을 담지 않습니다.
 - 오류 형식 `{ code, message, detail, request_id, errors }`는 `GlobalExceptionHandler` · `ApiErrorController`가 만듭니다. 새 형식을 만들지 않습니다.
-- 새 오류 코드는 `ErrorCode`에 추가하고, 같은 PR에서 `docs/api/openapi.yaml`의 오류 코드 표도 고칩니다. 코드·문구는 기능명세서 "오류·예외 처리" 탭과 맞추고, 명세에 없으면 PR에 "(제안)"으로 적어 프론트 담당 확인을 받습니다.
+- 새 오류 코드는 `ErrorCode`에 추가하고, 같은 PR에서 `docs/api/openapi.yaml`과 `services/api/README.md`의 오류 코드 표도 고칩니다. 코드·문구는 기능명세서 "오류·예외 처리" 탭과 맞추고, 명세에 없으면 PR에 "(제안)"으로 적어 프론트 담당 확인을 받습니다.
+- `message`에는 명세의 "농가 문구"를 씁니다. 접수자 웹·어드민은 `code`로 화면 문구를 정하므로 플랫폼별 코드를 따로 만들지 않습니다.
+- 문구 속 `{중괄호}`는 변수입니다. 값을 채운 문구를 `BusinessException(code, message, detail)`로 넘기고, 값이 없으면 명세의 대체 문구를 씁니다.
+- 직접 쓰는 문구는 명세 문구 규칙을 따릅니다: 해요체, "무엇이 안 됐는지 + 지금 할 수 있는 것", 금지 표현(진단·확률·위험도·이상·질병 의심·감염·양성·판정·자동 신고) 없음, 오류 코드·기술 용어 없음. `ErrorCodeTest`가 기본 문구를 검사합니다.
+- 외부 API(축산물이력제 등)·AI 호출이 실패해도 사용자 흐름을 멈추지 않습니다. 명세의 대체 경로(직접 입력, 판정 없이 저장 등)로 진행하고, 화면에 알릴 때만 해당 오류 코드(`TRACE-API-FAIL` 등)를 씁니다.
 - `detail`에는 개인정보·SQL·스택·내부 클래스 이름을 넣지 않습니다. 처리하지 못한 예외(`SRV-5XX`)는 원인을 로그에만 남깁니다.
 
 ### 요청·검증·JSON
@@ -59,7 +63,8 @@
 - 검증 문구는 기능명세서의 칸별 문구를 그대로 씁니다.
 - JSON 필드는 snake_case, 시간은 `Instant`(ISO-8601 UTC)입니다. 전역 설정이므로 DTO에 `@JsonProperty`로 이름을 따로 붙이지 않습니다.
 - 쿼리 파라미터는 JSON 설정의 영향을 받지 않습니다. 여러 단어면 `@RequestParam("head_count")`처럼 snake_case 이름을 직접 적습니다.
-- 같은 요청이 두 번 처리되면 안 되는 API(신고 전달 등)는 `Idempotency-Key` 헤더를 받습니다.
+- 같은 요청이 두 번 처리되면 안 되는 API(신고 전달 등)는 `@RequestHeader("Idempotency-Key")`를 필수로 받습니다. 없으면 `VALID-422`, 이미 처리된 키면 DB 고유 제약 위반으로 `CONFLICT-409`가 자동으로 나갑니다.
+- 저장·전달(POST)은 클라이언트가 자동 재시도하지 않습니다(명세 규칙). 서버는 실패해도 사용자가 [다시 시도]로 같은 요청을 보낼 수 있게 부분 저장을 남기지 않습니다(한 요청 = 한 트랜잭션).
 
 ### 엔티티·DB
 - DB 구조는 `mnm-data/migrations`에서만 바꿉니다. 이 레포에서는 테이블·컬럼을 만들거나 바꾸지 않고, 엔티티를 스키마에 맞춥니다.

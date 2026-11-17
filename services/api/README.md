@@ -49,7 +49,17 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | `METHOD-405` | 405 | 지원하지 않는 메서드 |
 | `CONFLICT-409` | 409 | 이미 처리됨 · 중복 요청 · DB 제약 위반 · 동시 수정 |
 | `UPLOAD-FAIL` | 413 | 업로드 용량 초과 |
+| `CATTLE-NOTFOUND` | 404 | 귀표 번호로 소를 못 찾음 |
+| `CATTLE-OTHER-FARM` | 409 | 다른 농장에 등록된 소 (농가 확인 후 다시 요청) |
+| `TRACE-API-FAIL` | 502 | 축산물이력제 조회 실패 (직접 입력으로 등록) |
+| `DELIVER-FAIL` | 500 | 수신함 전달 실패 |
+| `MAINT-503` | 503 | 서비스 점검 중 |
 | `SRV-5XX` | 500 | 처리하지 못한 예외 (원인은 로그에만) |
+
+- `message`는 명세의 "농가 문구"입니다. 접수자 웹·어드민은 `code`를 보고 화면 문구를 따로 정합니다.
+- 문구 속 `{중괄호}`(예: `{남은 분}`, `{재개 시각}`)는 변수입니다. 값을 채운 문구는 `new BusinessException(code, message, detail)`로 넘깁니다.
+- 새 문구는 명세 문구 규칙을 따릅니다: 해요체, "무엇이 안 됐는지 + 지금 할 수 있는 것", 금지 표현(진단·확률·위험도·이상·질병 의심·감염·양성·판정·자동 신고) 없음. `ErrorCodeTest`가 확인합니다.
+- `STT-FAIL`·`LLM-FAIL`·`PART-FAIL`·`BEHAVIOR-FAIL`·`RAG-NONE`은 AI 서비스가 이 서버에 주는 코드입니다. 서버가 대체 경로로 처리하고 클라이언트 오류로 내보내지 않습니다.
 
 ### JSON · 업로드 · CORS
 
@@ -58,6 +68,7 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | JSON 필드 이름 | snake_case (DTO에 `@JsonProperty` 불필요) | `application.yml` `spring.jackson` |
 | 시간 | `Instant` → ISO-8601 UTC (예: `2026-11-17T03:00:00Z`) | Jackson 기본값 |
 | 쿼리 파라미터 | JSON 설정과 무관. 여러 단어면 `@RequestParam("head_count")`로 직접 지정 | - |
+| `Idempotency-Key` | 신고 전달처럼 두 번 처리되면 안 되는 요청에 필수 (`@RequestHeader`). 없으면 `VALID-422`, 이미 처리된 키는 DB 고유 제약 위반 → `CONFLICT-409` | 전달 API |
 | 업로드 | 파일 1개 10MB, 요청 전체 20MB (nginx `client_max_body_size 20m`과 맞춤) | `spring.servlet.multipart` |
 | CORS | `CORS_ALLOWED_ORIGINS`(쉼표 구분)에 적은 주소만 `/api/**` 허용. 비우면 CORS 꺼짐 | `WebConfig` |
 | 로그 | 요청 처리 중 로그 줄마다 `[request_id]` | `logging.pattern.level` |

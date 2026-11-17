@@ -11,6 +11,7 @@ info:
     - 오류 응답은 ErrorResponse. 농가 화면은 message 만, 접수자·어드민은 request_id 를 "오류 번호"로 표시
     - 모든 응답 헤더에 X-Request-Id (본문의 request_id 와 같은 값)
     - 인증은 Authorization: Bearer {토큰}
+    - 중복되면 안 되는 요청(신고 전달)은 Idempotency-Key 헤더 필수. 없으면 VALID-422, 이미 처리된 키면 CONFLICT-409
 paths: {}
 components:
   securitySchemes:
@@ -50,11 +51,16 @@ components:
             | METHOD-405 | 405 | 지원하지 않는 메서드 |
             | CONFLICT-409 | 409 | 이미 처리됨 · 중복 요청 |
             | UPLOAD-FAIL | 413 | 업로드 실패 · 용량 초과 (파일 10MB) |
+            | CATTLE-NOTFOUND | 404 | 귀표 번호로 소를 못 찾음 |
+            | CATTLE-OTHER-FARM | 409 | 다른 농장에 등록된 소 (농가 확인 후 다시 요청) |
+            | TRACE-API-FAIL | 502 | 축산물이력제 조회 실패 (직접 입력으로 등록) |
+            | DELIVER-FAIL | 500 | 수신함 전달 실패 |
+            | MAINT-503 | 503 | 서비스 점검 중 |
             | SRV-5XX | 500 | 서버 오류 |
           example: VALID-422
         message:
           type: string
-          description: 사용자용 문구 (기능명세서 오류·예외 처리 탭 기준)
+          description: 농가 화면에 보여줄 문구 (기능명세서 오류·예외 처리 탭의 "농가 문구"). 접수자 웹·어드민은 code 로 화면 문구를 정한다
           example: 입력한 내용을 다시 확인해 주세요.
         detail:
           type: string

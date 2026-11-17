@@ -12,6 +12,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +41,11 @@ class CommonTestController {
 
     @GetMapping("/param")
     void param(@RequestParam @Min(1) int size) {
+    }
+
+    /** 전달 API처럼 Idempotency-Key 가 필수인 요청 */
+    @PostMapping("/deliver")
+    void deliver(@RequestHeader("Idempotency-Key") String idempotencyKey) {
     }
 
     @GetMapping("/business")
