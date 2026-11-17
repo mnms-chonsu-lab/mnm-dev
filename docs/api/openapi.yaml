@@ -2,5 +2,76 @@ openapi: 3.0.3
 info:
   title: mnm-dev API
   version: 0.0.1
-  description: 촌수의사 백엔드 API 명세 (초기 뼈대, 엔드포인트 추가 예정)
+  description: |
+    촌수의사 백엔드 API 명세 (초기 뼈대, 엔드포인트 추가 예정)
+
+    공통 규칙
+    - JSON 필드 이름은 snake_case. 시간은 ISO-8601 UTC (예: 2026-11-17T03:00:00Z)
+    - 성공 응답은 { data, request_id }. 목록은 data 안에 { items, has_next, next_cursor }. 본문이 없으면 204
+    - 오류 응답은 ErrorResponse. 농가 화면은 message 만, 접수자·어드민은 request_id 를 "오류 번호"로 표시
+    - 모든 응답 헤더에 X-Request-Id (본문의 request_id 와 같은 값)
+    - 인증은 Authorization: Bearer {토큰}
 paths: {}
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PageResponse:
+      type: object
+      description: 목록 응답 (BaseResponse 의 data). 다음 요청에 next_cursor 를 그대로 넘긴다
+      properties:
+        items:
+          type: array
+          items: {}
+        has_next:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+          description: 마지막 페이지면 null
+    ErrorResponse:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          description: |
+            | 코드 | HTTP | 상황 |
+            |---|---|---|
+            | AUTH-401 | 401 | 로그인 만료 |
+            | AUTH-403 | 403 | 권한 없음 (관할 밖 포함) |
+            | AUTH-FAIL | 401 | 로그인 정보 불일치 |
+            | AUTH-LOCK | 423 | 5회 실패 → 10분 잠금 |
+            | VALID-422 | 422 | 입력 오류 · 잘못된 JSON · 파라미터 오류 |
+            | NF-404 | 404 | 없는 기록 · 없는 경로 |
+            | METHOD-405 | 405 | 지원하지 않는 메서드 |
+            | CONFLICT-409 | 409 | 이미 처리됨 · 중복 요청 |
+            | UPLOAD-FAIL | 413 | 업로드 실패 · 용량 초과 (파일 10MB) |
+            | SRV-5XX | 500 | 서버 오류 |
+          example: VALID-422
+        message:
+          type: string
+          description: 사용자용 문구 (기능명세서 오류·예외 처리 탭 기준)
+          example: 입력한 내용을 다시 확인해 주세요.
+        detail:
+          type: string
+          nullable: true
+          description: 개발용 설명. 서버 오류(SRV-5XX)에는 넣지 않는다
+        request_id:
+          type: string
+          description: 요청 추적 번호 (응답 헤더 X-Request-Id 와 같은 값)
+        errors:
+          type: array
+          description: 입력 오류(VALID-422)일 때만. 칸별 문구
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: ear_tag
+              message:
+                type: string
+                example: 귀표 번호 12자리를 모두 넣어 주세요.
