@@ -63,4 +63,23 @@ public class FarmInfo {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "org_id")
     private ReceiverOrg org;
+
+    /** 농가 계정과 함께 만든다 (A-P01). 위경도는 주소 변환(REQ-DATA-04)이 정해지면 채운다 */
+    public static FarmInfo create(String farmNo, User owner, String name, String address, String regionCode,
+            Integer headCount, ReceiverOrg org) {
+        FarmInfo farm = new FarmInfo();
+        farm.farmNo = farmNo;
+        farm.owner = owner;
+        farm.name = name;
+        farm.address = address;
+        farm.regionCode = regionCode;
+        farm.headCount = headCount;
+        farm.org = org;
+        return farm;
+    }
+
+    /** 담당 축협 변경 (A-S03F) */
+    public void changeOrg(ReceiverOrg org) {
+        this.org = org;
+    }
 }

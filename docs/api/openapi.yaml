@@ -14,6 +14,224 @@ info:
       (/api/farmer = 농가, /api/receiver = 접수자, /api/admin = 운영자)
     - 중복되면 안 되는 요청(신고 전달)은 Idempotency-Key 헤더 필수. 없으면 VALID-422, 이미 처리된 키면 CONFLICT-409
 paths:
+  /api/admin/health:
+    get:
+      tags: [어드민]
+      summary: 서비스 상태 (ADM-01, A-S01)
+      description: |
+        data = { components[], checked_at }. components 순서는 api · db · ai · etl.
+        - component = { key, status(normal|delayed|error|unknown), detail, last_at }
+        - ai: 최근 1시간 inference_log. 오류율 5% 초과 = error, 평균 지연 3초 초과 = delayed (제안값, 실측으로 조정). 호출이 없으면 unknown. detail = 평균 지연 ("820ms")
+        - etl: 작업별 마지막 실행 중 하나라도 failed 면 error, detail = 실패한 작업 이름(쉼표). 실행 기록이 없으면 unknown
+        - DB 가 안 되면 db = error, ai · etl = unknown (200 으로 응답)
+      responses:
+        '200': { description: 구성요소별 상태 }
+  /api/admin/metrics/today:
+    get:
+      tags: [어드민]
+      summary: 오늘 수치 (ADM-01, A-S01)
+      description: |
+        한국 시간 0시(since)부터. data = { records, deliveries, pending_receipts, ai_error_rate, since }
+        - records = 일지 기록("신고" 자동 줄 제외) + 소 상태 기록
+        - pending_receipts = 도착한 전달 중 마지막 처리 상태가 처리 완료가 아닌 것
+        - ai_error_rate = 0~1, 오늘 AI 호출이 없으면 null
+      responses:
+        '200': { description: 오늘 수치 }
+  /api/admin/users:
+    get:
+      tags: [어드민]
+      summary: 사용자 목록·검색 (ADM-02, A-S02)
+      description: |
+        최근에 만든 계정부터 20개씩. 연락처는 마스킹(010-****-0937).
+        items[] = { users_id, role, name, login_id, phone_masked, org_id, org_name, farm_no, farm_name, status, last_login_at }
+        (org = 접수자 소속 기관 또는 농가 담당 축협)
+      parameters:
+        - { name: role, in: query, schema: { type: string, enum: [farmer, receiver, admin] } }
+        - { name: status, in: query, schema: { type: string, enum: [active, suspended, invited] } }
+        - { name: org_id, in: query, schema: { type: integer }, description: 소속 기관 또는 담당 축협 }
+        - { name: q, in: query, schema: { type: string }, description: 이름·아이디·연락처·농장명·농장식별번호 부분 일치 }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse' }
+    post:
+      tags: [어드민]
+      summary: 계정 만들기 (ADM-03, A-P01)
+      description: |
+        역할별 필수 칸 — 농가: farm_no · name · phone(휴대폰) / 접수자: name · login_id · org_id / 운영자: name · login_id.
+        농가는 농장(farm_info)도 함께 만들고 비밀번호가 없다(farm_name 이 없으면 "{이름} 농장"). 주소 → 법정동·위경도 변환은 아직 없어 region_code 를 직접 받는다.
+        접수자·운영자는 임시 비밀번호를 만들어 이 응답에서만 한 번 보여준다(첫 로그인 때 R-S06). 감사 기록(create · user)을 남긴다.
+        data = { users_id, role, login_id, temp_password }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, name]
+              properties:
+                role: { type: string, enum: [farmer, receiver, admin] }
+                name: { type: string, maxLength: 50 }
+                phone: { type: string, example: 010-0000-3390 }
+                farm_no: { type: string, pattern: '^\d{6}$' }
+                farm_name: { type: string }
+                address: { type: string }
+                head_count: { type: integer, minimum: 0 }
+                region_code: { type: string, pattern: '^\d{10}$' }
+                org_id: { type: integer, description: '접수자 소속 기관 · 농가 담당 축협' }
+                login_id: { type: string, pattern: '^[A-Za-z0-9._-]{3,50}$' }
+                inbox_id: { type: string, description: 접수자 소속 수신함 (그 기관의 수신함만) }
+      responses:
+        '201': { description: 만든 계정 }
+        '409': { description: 'CONFLICT-409 (농장식별번호 · 농가 휴대폰 · 아이디 중복, message 로 구분)' }
+        '422': { description: VALID-422 (역할별 필수 칸 없음 · 없는 기관 · 기관에 없는 수신함) }
+  /api/admin/users/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [어드민]
+      summary: 사용자 상세 (ADM-02, A-S03 · A-S03F)
+      description: |
+        data = { users_id, role, name, login_id, phone_masked, status, must_change_pw, locked, last_login_at, created_at, org_id, org_name, inbox_id, farm }
+        farm(농가만) = { farm_id, farm_no, name, address, region_code, head_count, org_id, org_name, cow_count, records30d, delivered_count }. 기록 내용은 주지 않는다
+      responses:
+        '200': { description: 사용자 상세 }
+        '404': { description: NF-404 }
+    patch:
+      tags: [어드민]
+      summary: 계정 수정 · 정지 · 비밀번호 초기화 (ADM-04, A-S03 · A-S03F)
+      description: |
+        보낸 칸만 바꾼다. 농가: phone · org_id(담당 축협) · status / 접수자·운영자: phone · org_id · inbox_id · status · reset_password.
+        기관을 옮기면 inbox_id 를 같이 보내지 않는 한 수신함은 비운다. 내 계정은 정지할 수 없다.
+        reset_password=true 면 새 임시 비밀번호 + 잠금 해제 + 다음 로그인 때 R-S06 (농가는 VALID-422).
+        감사 기록: 칸 변경 = update, 초기화 = password_reset. data = { user(상세와 같음), temp_password }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [active, suspended] }
+                phone: { type: string }
+                org_id: { type: integer }
+                inbox_id: { type: string }
+                reset_password: { type: boolean }
+      responses:
+        '200': { description: 바뀐 계정 }
+        '404': { description: NF-404 }
+        '409': { description: CONFLICT-409 (농가 휴대폰 중복) }
+        '422': { description: VALID-422 }
+  /api/admin/orgs:
+    get:
+      tags: [어드민]
+      summary: 접수 기관 목록 (ADM-05, A-S09)
+      description: |
+        한 번에 준다(has_next=false). items[] = { org_id, name, type, region_codes[], phone, inboxes[], receiver_count }
+        inboxes[] = { inbox_id, type(history|biosecurity), name, phone, receiver_count } — receiver_count 0 이면 화면에 "받는 사람 없음"
+      responses:
+        '200': { description: 'PageResponse' }
+    post:
+      tags: [어드민]
+      summary: 기관 추가 (ADM-05, A-S09)
+      description: 새 수신함은 inbox_id 없이 보내면 서버가 만든다. 감사 기록(create · receiver_org)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminOrgRequest' }
+      responses:
+        '201': { description: 만든 기관 (목록 한 줄과 같은 모양) }
+        '422': { description: VALID-422 }
+  /api/admin/orgs/{id}:
+    patch:
+      tags: [어드민]
+      summary: 기관 수정 (ADM-05, A-S09)
+      description: |
+        편집 패널의 전체 값을 보낸다. 기존 수신함은 inbox_id 를 그대로, 새 수신함은 inbox_id 없이.
+        접수자가 남아 있는 수신함을 빼면 CONFLICT-409. 감사 기록(update · receiver_org)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminOrgRequest' }
+      responses:
+        '200': { description: 바뀐 기관 }
+        '404': { description: NF-404 }
+        '409': { description: CONFLICT-409 (접수자가 있는 수신함 삭제) }
+        '422': { description: VALID-422 (이 기관에 없는 inbox_id · 중복) }
+  /api/admin/guides:
+    get:
+      tags: [어드민]
+      summary: 안내 문구 목록 (ADM-07, A-S05)
+      description: |
+        분류별 화면 순서(display_order)대로 한 번에 준다. items[] = { biosecurity_rule_id, kind, disease, stage, text, source_doc, clause,
+        revised_at, display_order, example_image, part_code, photo_part, yes_required_parts[], status, reviewer, version }
+      parameters:
+        - { name: kind, in: query, schema: { type: string, enum: [question, photo_guide, action, form_field, summary, clause] } }
+        - { name: status, in: query, schema: { type: string, enum: [draft, review, published] } }
+        - { name: disease, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse' }
+    post:
+      tags: [어드민]
+      summary: 안내 문구 등록 (ADM-07, A-S05)
+      description: 초안(draft, version 1)으로 만든다. text 는 공식 자료 원문 그대로. 감사 기록(create · biosecurity_rule)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, content]
+              properties:
+                kind: { type: string, enum: [question, photo_guide, action, form_field, summary, clause] }
+                content: { $ref: '#/components/schemas/AdminGuideContent' }
+      responses:
+        '201': { description: 만든 문구 }
+        '422': { description: VALID-422 }
+  /api/admin/guides/{id}:
+    patch:
+      tags: [어드민]
+      summary: 안내 문구 수정 · 검수 · 게시 (ADM-08, A-S05)
+      description: |
+        content 를 보내면 내용 전체를 바꾼다. 게시된 문구면 그 문구는 그대로 두고 새 버전(version+1, draft)을 만들어 돌려준다(새 biosecurity_rule_id).
+        status: draft → review → published. 초안에서 바로 게시하면 VALID-422. 게시할 때 reviewer(없으면 운영자 이름)를 남기고,
+        같은 자리(분류·질병·단계·순서·부위·조항)의 이전 게시 버전은 draft 로 내려 보관한다.
+        감사 기록: 내용 변경 = update(새 버전은 create), 게시 = publish
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content: { $ref: '#/components/schemas/AdminGuideContent' }
+                status: { type: string, enum: [draft, review, published] }
+                reviewer: { type: string, maxLength: 50 }
+      responses:
+        '200': { description: 바뀐 문구 (새 버전을 만들었으면 새 버전) }
+        '404': { description: NF-404 }
+        '422': { description: VALID-422 }
+  /api/admin/audit-logs:
+    get:
+      tags: [어드민]
+      summary: 감사 로그 (ADM-12, A-S08)
+      description: |
+        최근순 20개씩. 기간은 [from, to). items[] = { audit_log_id, at, users_id, user_name, user_role, action, target_type, target_id }
+        action: create · update · publish · password_reset (어드민) / view 등 (접수자 API 가 남긴다)
+      parameters:
+        - { name: users_id, in: query, schema: { type: integer } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: target_type, in: query, schema: { type: string }, description: 'user · receiver_org · biosecurity_rule 등' }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse' }
   /api/auth/farmer/login:
     post:
       tags: [인증]
@@ -634,6 +852,39 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AdminOrgRequest:
+      type: object
+      required: [name, type, region_codes, inboxes]
+      properties:
+        name: { type: string, maxLength: 100 }
+        type: { type: string, enum: [축협, 방역기관, 시군청] }
+        region_codes: { type: array, minItems: 1, items: { type: string, pattern: '^\d{10}$' }, description: 관할 법정동 코드 }
+        phone: { type: string }
+        inboxes:
+          type: array
+          items:
+            type: object
+            required: [type, name]
+            properties:
+              inbox_id: { type: string, description: 없으면 새 수신함 }
+              type: { type: string, enum: [history, biosecurity] }
+              name: { type: string }
+              phone: { type: string }
+    AdminGuideContent:
+      type: object
+      required: [text, source_doc]
+      properties:
+        disease: { type: string }
+        stage: { type: string, enum: [suspect, after_report, regional] }
+        text: { type: string, description: 공식 자료 원문 }
+        source_doc: { type: string, maxLength: 200 }
+        clause: { type: string, maxLength: 200 }
+        revised_at: { type: string, format: date }
+        display_order: { type: integer }
+        example_image: { type: string }
+        part_code: { type: string }
+        photo_part: { type: string }
+        yes_required_parts: { type: array, items: { type: string } }
     ReportFields:
       type: object
       description: |
