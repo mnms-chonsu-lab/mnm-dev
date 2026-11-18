@@ -74,4 +74,21 @@ public class Delivery {
     /** delivered | queued | failed */
     @Column(nullable = false, length = 20)
     private String status = "queued";
+
+    /** 농가가 승인한 전달 1건. reportSummary 와 historyReport 중 하나만 넣는다 */
+    public static Delivery approve(ReportSummary reportSummary, HistoryReport historyReport, String route,
+            ReceiverOrg org, ReceiverOrg ccOrg, boolean sharePhone, String idempotencyKey, Instant approvedAt,
+            String status) {
+        Delivery delivery = new Delivery();
+        delivery.reportSummary = reportSummary;
+        delivery.historyReport = historyReport;
+        delivery.route = route;
+        delivery.org = org;
+        delivery.ccOrg = ccOrg;
+        delivery.sharePhone = sharePhone;
+        delivery.idempotencyKey = idempotencyKey;
+        delivery.approvedAt = approvedAt;
+        delivery.status = status;
+        return delivery;
+    }
 }

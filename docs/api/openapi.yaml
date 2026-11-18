@@ -340,6 +340,481 @@ paths:
                           org_name: { type: string, nullable: true }
                   request_id: { type: string }
         '401': { description: AUTH-401 }
+  /api/farmer/home:
+    get:
+      tags: [농가 앱]
+      summary: 홈 요약 (FARM-05, F-S01)
+      description: |
+        data = { farmer_name, task_count, tasks[], unread_alert_count, region }
+        - tasks: 끝내지 않은 할 일, 기한 임박순. { tasks_id, kind(birth_report|death_report|move_report|ear_tag), title, due_date, d_day, ref_id(이력 신고서 번호) }
+        - region: FARM-17 /region/outbreaks 와 같음
+      responses:
+        '200': { description: 홈 요약 }
+  /api/farmer/region/outbreaks:
+    get:
+      tags: [농가 앱]
+      summary: 우리 지역 발생 현황 (FARM-17, F-S01)
+      description: |
+        농장 법정동 앞 5자리(시군구) 기준 최근 30일. data = { region_name, fmd_count, lsd_count, base_at(수집 기준 시각) }
+        농장 지역 코드가 없으면 region_name = null, 건수 0. 수집 실패 시 직전 값·기준 시각 그대로
+      responses:
+        '200': { description: 지역 발생 건수 }
+  /api/farmer/facilities/nearest:
+    get:
+      tags: [농가 앱]
+      summary: 가장 가까운 거점소독시설 (FARM-17, F-S14)
+      description: |
+        농장 위경도 기준 직선거리 최소 1곳. data = { name, address, distance_km(소수 1자리), operating_hours, phone }
+        농장 위경도·시설 정보가 없으면 data = null
+      responses:
+        '200': { description: 거점소독시설 }
+  /api/farmer/records/voice:
+    post:
+      tags: [농가 앱]
+      summary: 음성 기록 → 정리 초안 (FARM-03, F-S02)
+      description: |
+        음성 → 문장(/ai/stt) → 정리(/ai/route). 저장하지 않는다(확인 후 FARM-04). 음성 원본도 저장하지 않는다 (MVP).
+        음성을 못 알아들으면 200 + fallback=text_input (글로 쓰기 F-S02T). 응답 형식은 FARM-25 와 같다.
+        AI 서버 배포 전에는 mock (음성 내용과 상관없이 시연 문장 S1 을 돌려준다)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: 'audio/webm · audio/mp4(m4a), 60초 이하, 10MB 이하' }
+      responses:
+        '200': { $ref: '#/components/responses/RecordDraft' }
+        '413': { description: UPLOAD-FAIL }
+        '422': { description: VALID-422 (빈 파일 · 음성 형식 아님) }
+  /api/farmer/records/text:
+    post:
+      tags: [농가 앱]
+      summary: 글 기록 → 정리 초안 (FARM-25, F-S02T)
+      description: 정리하지 못하면 200 + fallback=select_input (선택형 입력 F-S03E)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, maxLength: 2000, example: 어젯밤에 0871번이 송아지 낳았어. 암컷이야. }
+      responses:
+        '200': { $ref: '#/components/responses/RecordDraft' }
+        '422': { description: VALID-422 }
+  /api/farmer/diary:
+    get:
+      tags: [농가 앱]
+      summary: 일지 목록 (FARM-04, F-S15)
+      description: |
+        날짜별 묶음, 30일씩 최근순 (기록 없는 기간은 건너뜀). items = [{ date, entries[] }]
+        entry = { entry_id, date, category, cow_id, cow_tag4, value, vaccine_type, head_count }
+        category: 사육현황 · 접종 · 소독 · 관찰 · 출입 · 출생 · 폐사 · 이동 · 메모 + 신고(서버 자동 기록)
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, format: date }, description: 이전 응답의 next_cursor }
+      responses:
+        '200': { description: 'PageResponse<{ date, entries[] }>' }
+    post:
+      tags: [농가 앱]
+      summary: 일지 저장 (FARM-04, F-S03)
+      description: |
+        확인된 항목만 저장한다. report 가 있으면 이력 신고서 초안 + 기한 할 일(발생일이 있을 때)도 같은 트랜잭션으로 만든다.
+        data = { entry_ids[], history_report(FARM-06 과 같은 형식 | null) }. 신고서 빈칸이 있으면 F-S04Q 로
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                date: { type: string, format: date, description: '없으면 오늘(한국 시각). 미래 날짜는 VALID-422' }
+                raw_text: { type: string, maxLength: 2000, description: 원래 말 (F-S15D) }
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [category]
+                    properties:
+                      category: { type: string, enum: [사육현황, 접종, 소독, 관찰, 출입, 출생, 폐사, 이동, 메모] }
+                      value: { type: string, maxLength: 500 }
+                      cow_id: { type: integer, nullable: true, description: '내 소가 아니면 CATTLE-NOTFOUND' }
+                      vaccine_type: { type: string, maxLength: 50 }
+                      head_count: { type: integer, minimum: 0 }
+                report:
+                  type: object
+                  nullable: true
+                  required: [type]
+                  properties:
+                    type: { type: string, enum: [출생, 폐사, 양도, 양수, 이동] }
+                    fields: { $ref: '#/components/schemas/ReportFields' }
+      responses:
+        '201': { description: 저장됨 }
+        '404': { description: CATTLE-NOTFOUND }
+        '422': { description: 'VALID-422 (분류 · 날짜 · 신고서 칸 형식, 목록에 없는 귀표)' }
+  /api/farmer/diary/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [농가 앱]
+      summary: 일지 기록 한 건 보기 (FARM-26, F-S15D)
+      description: |
+        data = { entry, raw_text, deliveries[] }. deliveries: 이 기록이 함께 보내진 소 상태 기록 전달
+        (기록일부터 14일 안에 승인된 전달) { delivery_id, approved_at, org_name, receiver_status(new|checking|done) }
+      responses:
+        '200': { description: 일지 기록 }
+        '404': { description: NF-404 }
+    patch:
+      tags: [농가 앱]
+      summary: 일지 기록 고치기 (FARM-26, F-S03E)
+      description: 보낸 값으로 바꾼다 (원래 말은 그대로). 서버가 남긴 '신고' 기록은 VALID-422
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category]
+              properties:
+                date: { type: string, format: date }
+                category: { type: string, enum: [사육현황, 접종, 소독, 관찰, 출입, 출생, 폐사, 이동, 메모] }
+                value: { type: string, maxLength: 500 }
+                cow_id: { type: integer, nullable: true }
+                vaccine_type: { type: string }
+                head_count: { type: integer }
+      responses:
+        '200': { description: 고친 기록 (entry 형식) }
+        '404': { description: NF-404 · CATTLE-NOTFOUND }
+        '422': { description: VALID-422 }
+    delete:
+      tags: [농가 앱]
+      summary: 일지 기록 지우기 (FARM-26)
+      description: 이미 전달된 기록은 받은 곳의 사본이 남는다 (화면에서 안내)
+      responses:
+        '204': { description: 지움 }
+        '404': { description: NF-404 }
+  /api/farmer/history-reports/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [농가 앱]
+      summary: 이력 신고서 초안 (FARM-06, F-S04 · F-S04D · F-S04M)
+      responses:
+        '200': { $ref: '#/components/responses/HistoryReport' }
+        '404': { description: NF-404 }
+    patch:
+      tags: [농가 앱]
+      summary: 신고서 빈칸 채우기 (FARM-07, F-S04Q · F-P02)
+      description: |
+        보낸 칸만 바꾸고 null 은 지운다. 빈칸·다음 질문·기한·기한 할 일을 다시 계산한다. 초안일 때만 (아니면 CONFLICT-409).
+        type 은 양도·양수·이동끼리만 바꿀 수 있다. 소 칸은 내 소 목록(뺀 소 포함)의 끝 4자리 또는 12자리 (양수는 목록 확인 안 함)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fields]
+              properties:
+                type: { type: string, enum: [양도, 양수, 이동] }
+                fields: { $ref: '#/components/schemas/ReportFields' }
+      responses:
+        '200': { $ref: '#/components/responses/HistoryReport' }
+        '409': { description: CONFLICT-409 (이미 보낸 신고서) }
+        '422': { description: 'VALID-422 (알 수 없는 칸 · 형식 · 미래 날짜 · 목록에 없는 귀표)' }
+  /api/farmer/history-reports/{id}/copy-text:
+    get:
+      tags: [농가 앱]
+      summary: 직접 제출용 항목 텍스트 (FARM-08, F-S05)
+      description: 'data = { title, lines[{ label, value }], text(줄바꿈 구분, 빈칸은 "(빈칸)"), can_submit }'
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: 복사용 항목 }
+  /api/farmer/history-reports/{id}/submit:
+    post:
+      tags: [농가 앱]
+      summary: 신고 마침 · 축협에 부탁 (FARM-09, F-S05 · F-S06)
+      description: |
+        - self: 빈칸이 없어야 한다(있으면 VALID-422). 상태 done, 폐사·양도 소는 목록에서 빼기, 출생이고 송아지 귀표가 없으면 귀표 30일 할 일 등록(ear_tag_due)
+        - coop: 빈칸이 있어도 된다. Idempotency-Key 필수. 담당 축협 수신함으로 전달(deliveries), 상태 sent
+        - 둘 다 신고 기한 할 일을 끝내고 일지에 '신고'를 남긴다. 초안이 아니면 CONFLICT-409
+        data = { history_report_id, status, mode, delivery_id, org_name, ear_tag_due }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 64 }, description: mode=coop 일 때 필수 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: { type: string, enum: [self, coop] }
+      responses:
+        '200': { description: 제출 결과 }
+        '409': { description: CONFLICT-409 (이미 보냄 · 같은 Idempotency-Key) }
+        '422': { description: VALID-422 (직접 제출인데 빈칸 · 키 없음) }
+        '500': { description: DELIVER-FAIL (담당 축협 없음) }
+  /api/farmer/farms/me/cows:
+    get:
+      tags: [농가 앱]
+      summary: 소 목록 (FARM-02, F-S08 · F-S18)
+      description: |
+        목록에 있는 소(active). 최근 일지가 있는 소 먼저, 그다음 끝 4자리 순. 페이지 없음(has_next=false).
+        item = { cow_id, tag_last4, tag_full, breed, sex, birth_date, age_years, barn, vaccine_last_date, vaccine_last_order, source(trace|manual), trace_checked_at, status }
+      responses:
+        '200': { description: 'PageResponse<cow>' }
+    post:
+      tags: [농가 앱]
+      summary: 소 등록 (FARM-23, F-P04 · F-P04N)
+      description: |
+        서버가 이력제를 다시 조회해 그 값을 그대로 저장한다(source=trace). 못 찾거나 조회가 안 되면 sex·birth_date 로 등록(source=manual).
+        다른 농장 소면 CATTLE-OTHER-FARM → 농가 확인 후 confirm_other_farm=true 로 다시 보낸다. 이미 등록된 귀표는 CONFLICT-409.
+        AI·데이터 연동 전에는 이력제 조회가 mock 이다: 마지막 자리 0 = 못 찾음, 008… = 다른 농장, 009… = 조회 실패
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag_no]
+              properties:
+                tag_no: { type: string, example: 002 1234 5678 9, description: 귀표 12자리 (띄어쓰기·하이픈 무시) }
+                barn: { type: string, maxLength: 50 }
+                sex: { type: string, enum: [암, 수], description: 직접 입력일 때 필수 }
+                birth_date: { type: string, example: 2024-01, description: 'YYYY-MM 또는 YYYY-MM-DD (일을 모르면 1일). 직접 입력일 때 필수' }
+                confirm_other_farm: { type: boolean, default: false }
+      responses:
+        '201': { description: 등록된 소 (FARM-02 item 형식) }
+        '409': { description: CONFLICT-409 (이미 등록) · CATTLE-OTHER-FARM }
+        '422': { description: VALID-422 (귀표 형식 · 직접 입력 값 없음) }
+  /api/farmer/cows/lookup:
+    get:
+      tags: [농가 앱]
+      summary: 귀표 → 이력제 조회 (FARM-22, F-P04)
+      description: 'data = { tag_no, breed, sex, birth_date, vaccine_last_date, vaccine_last_order, already_registered }. 값은 가공하지 않는다'
+      parameters:
+        - { name: tag_no, in: query, required: true, schema: { type: string }, description: 귀표 12자리 }
+      responses:
+        '200': { description: 조회 결과 }
+        '404': { description: CATTLE-NOTFOUND }
+        '409': { description: CATTLE-OTHER-FARM }
+        '422': { description: VALID-422 (12자리 아님) }
+        '502': { description: TRACE-API-FAIL (직접 입력으로 등록) }
+  /api/farmer/cows/{id}:
+    patch:
+      tags: [농가 앱]
+      summary: 축사 수정 · 목록에서 빼기 (FARM-24, F-P05)
+      description: |
+        barn 은 보낼 때만 바꾼다(빈 문자열 = 지움). remove_reason 을 보내면 목록에서 뺀다(지난 기록은 남음).
+        create_report=true 면 폐사 → 폐사 신고서, 팔림 → 양도 신고서 초안을 만든다(날짜는 비워 둠). data = { cow, history_report_id }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barn: { type: string, maxLength: 50 }
+                remove_reason: { type: string, enum: [팔림, 폐사, 기타] }
+                create_report: { type: boolean, default: false }
+      responses:
+        '200': { description: 바뀐 소 }
+        '404': { description: CATTLE-NOTFOUND (내 농장 소 아님) }
+  /api/farmer/guide/questions:
+    get:
+      tags: [농가 앱]
+      summary: 공식 증상 질문 (FARM-10, F-S09)
+      description: |
+        게시된 질문만, 순서대로 (침 → 물집 → 사료 → 혹). 페이지 없음.
+        item = { rule_id, answer_key(drool|blister|feed|lump, FARM-11 답 키), text, example_image, yes_required_parts[], source_doc, clause }
+      responses:
+        '200': { description: 'PageResponse<question>' }
+  /api/farmer/symptom-reports:
+    post:
+      tags: [농가 앱]
+      summary: 소 상태 기록 저장 (FARM-11, F-S08 · F-S09Q · F-S09)
+      description: |
+        data = { symptom_report_id, matched_count, matched[], required_parts[{ part(mouth|hoof|flank), part_name, guide, guide_rule_id }], disease(FMD|LSD|null) }
+        matched_count 는 "예"로 답한 공식 질문 수 (판정 아님). 모두 아니요면 required_parts = [], disease = null (질병 안내 없음)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                cow_id: { type: integer, nullable: true, description: '없으면 "귀표 번호를 모르겠어요"' }
+                answers:
+                  type: object
+                  required: [drool, blister, feed, lump]
+                  properties:
+                    drool: { type: string, enum: [yes, no, unknown] }
+                    blister: { type: string, enum: [yes, no, unknown] }
+                    feed: { type: string, enum: [yes, no, unknown] }
+                    lump: { type: string, enum: [yes, no, unknown] }
+                observed_text: { type: string, maxLength: 1000, description: 본 것 말하기 (F-S08S) }
+                head_count: { type: integer, description: 이런 모습인 소 수 }
+                found_date: { type: string, format: date, description: 처음 본 날 (없으면 오늘) }
+                barn: { type: string, description: 없으면 소의 축사 }
+                dead_count: { type: integer }
+      responses:
+        '201': { description: 저장됨 }
+        '404': { description: CATTLE-NOTFOUND }
+        '422': { description: VALID-422 }
+  /api/farmer/symptom-reports/{id}/summary:
+    get:
+      tags: [농가 앱]
+      summary: 오늘 기록 요약 (FARM-14, F-S11 · F-S19)
+      description: |
+        data = { symptom_report_id, cow, matched_count, matched[], observed_text, head_count, found_date, barn,
+        related_diary[](같은 소 최근 7일), vaccine{ date, value }, photos[{ media_id, part, match }], disease, delivered(QR 표시),
+        form6{6개 항목, 빈칸 null}, form6_text(인터넷 신고서 복사용, 빈칸 "(빈칸)") }
+        6개 항목은 요약 규칙(/ai/summary, 지금은 mock)으로 만들고, 실패하면 form6 = null (원본 기록만 표시)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: 오늘 기록 요약 }
+        '404': { description: NF-404 }
+  /api/farmer/guide/actions:
+    get:
+      tags: [농가 앱]
+      summary: 질병별 지금 할 일 (FARM-16, F-S14)
+      description: 'disease = FARM-11 응답의 disease. 게시된 조치 문구 원문, 신고 직후 단계 우선, 최대 3개. data = { disease, guide_name, actions[{ rule_id, text, source_doc, clause, revised_at }] }'
+      parameters:
+        - { name: disease, in: query, required: true, schema: { type: string, enum: [FMD, LSD] } }
+      responses:
+        '200': { description: 지금 할 일 }
+        '422': { description: VALID-422 }
+  /api/farmer/deliveries:
+    post:
+      tags: [농가 앱]
+      summary: 승인 → 전달 (FARM-15, F-S13 · F-S13P)
+      description: |
+        농가가 [네, 보낼게요]를 누른 뒤에만 부른다. 요약 카드(report_summary)를 만들고 경로별 수신함으로 전달한다.
+        - coop: 담당 축협 / gov: 관할 시군청 (농장 지역 코드, 없으면 담당 축협 관할로 찾음)
+        - call · web: send_to_coop 이면 담당 축협(cc_org)에만 전달, 끄면 전달 없이 일지에만 (status = not_sent)
+        - 일지에 '신고'를 남긴다. 받을 기관이 없으면 DELIVER-FAIL
+        data = { delivery_id, route, status(delivered|not_sent), org_name, cc_org_name, approved_at, disease, form6_text }
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symptom_report_id, route]
+              properties:
+                symptom_report_id: { type: integer }
+                route: { type: string, enum: [call, coop, web, gov] }
+                send_to_coop: { type: boolean, default: true }
+                share_phone: { type: boolean, default: true }
+                approved_at: { type: string, format: date-time, description: '누른 시각 (대기열에서 나중에 보낼 때). 없으면 서버 시각' }
+      responses:
+        '201': { description: 전달 결과 }
+        '404': { description: NF-404 (소 상태 기록 없음) }
+        '409': { description: CONFLICT-409 (같은 Idempotency-Key) }
+        '422': { description: VALID-422 (키 없음 · 형식) }
+        '500': { description: DELIVER-FAIL }
+  /api/farmer/deliveries/mine:
+    get:
+      tags: [농가 앱]
+      summary: 내가 보낸 기록 · 접수 상태 (FARM-27, F-S17S)
+      description: |
+        최근순 20건. item = { delivery_id, approved_at, kind(symptom|history), title, route, org_name, status,
+        receiver_status(new|checking|done), receiver_result, symptom_report_id, history_report_id }
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse<sent>' }
+  /api/farmer/alerts:
+    get:
+      tags: [농가 앱]
+      summary: 알림 목록 (FARM-18, F-S16)
+      description: |
+        최근순 20건. 연 알림은 읽음(read_at)으로 표시한다 → 홈 미확인 수가 줄어든다.
+        item = { alerts_id, kind(diff|deadline|result), title, body, ref_id, feedback(seen|ok|null), read_at, created_at }
+        MVP 는 알림 생성 스케줄러(기한 D-3·D-1·평소와 다름)를 만들지 않는다. 처리 결과 알림은 접수자 상태 변경(RCV-03)에서 생긴다
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse<alert>' }
+  /api/farmer/alerts/{id}/feedback:
+    post:
+      tags: [농가 앱]
+      summary: 확인함 · 문제 없음 (FARM-19, F-S16)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [feedback]
+              properties:
+                feedback: { type: string, enum: [seen, ok] }
+      responses:
+        '200': { description: 피드백 반영된 알림 }
+        '404': { description: NF-404 }
+  /api/farmer/me/settings:
+    get:
+      tags: [농가 앱]
+      summary: 화면 설정 (FARM-20, F-S17)
+      description: 'data = { font_step(0~4), high_contrast, auto_speak }. 저장한 적 없으면 기본값 (1, false, false)'
+      responses:
+        '200': { description: 설정 }
+    patch:
+      tags: [농가 앱]
+      summary: 화면 설정 바꾸기 (FARM-20, COM-03)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                font_step: { type: integer, minimum: 0, maximum: 4 }
+                high_contrast: { type: boolean }
+                auto_speak: { type: boolean }
+      responses:
+        '200': { description: 바뀐 설정 }
+        '422': { description: VALID-422 }
+  /api/farmer/me/farm:
+    get:
+      tags: [농가 앱]
+      summary: 농장 정보 (FARM-20, F-S17)
+      description: 'data = { farm_no, farm_name, address, owner_name, phone, head_count, org_name, cow_count, sent_count }'
+      responses:
+        '200': { description: 농장 정보 }
+    patch:
+      tags: [농가 앱]
+      summary: 연락처 바꾸기 (FARM-20, F-P06)
+      description: 바꾼 번호로 다음에 로그인한다(숫자만 저장). 다른 농가와 같은 번호면 CONFLICT-409
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: 010-0000-0937 }
+      responses:
+        '200': { description: 농장 정보 }
+        '409': { description: CONFLICT-409 }
+        '422': { description: VALID-422 }
 components:
   responses:
     Login:
@@ -357,6 +832,20 @@ components:
                   role: { type: string, enum: [farmer, receiver, admin] }
                   must_change_pw: { type: boolean, description: 'true 면 R-S06 으로' }
               request_id: { type: string }
+    RecordDraft:
+      description: |
+        저장하지 않은 정리 초안 (F-S03 "이렇게 적을까요?"). data = { raw_text, intent(diary|history_report|symptom), items[], report_type, report_fields, missing[], report_notice, fallback }
+        - items: [{ category, value, cow_tag4, cow_id(끝 4자리로 찾은 내 소), vaccine_type, head_count }]
+        - report_type: 출생 | 폐사 | 양도 | 양수 | 이동 | null. report_fields 는 ReportFields 키 (출생 품종은 어미 소 값으로 채움)
+        - report_notice: { report_due, d_day } 신고 기한 안내 (발생일을 알 때)
+        - fallback: null | text_input(음성 인식 실패 → F-S02T) | select_input(정리 실패 → F-S03E)
+    HistoryReport:
+      description: |
+        data = { history_report_id, type, fields, missing[], next_question, can_submit, due_date, d_day, mode(self|coop|null),
+        status(draft|sent|checking|done), cows[{ field, cow_id, tag_last4, tag_full, breed, sex, birth_date, age_years }],
+        farm{ owner_name, farm_name, farm_no, address, org_name } }
+        - 빈칸이 없어야 can_submit (직접 제출). 빈칸이 있어도 축협 부탁은 된다
+        - 기한 = 발생일 다음 날부터 토·일·공휴일을 빼고 5일째 (mnm-ai rules/deadline 과 같은 규칙)
   securitySchemes:
     bearer:
       type: http
@@ -396,6 +885,15 @@ components:
         part_code: { type: string }
         photo_part: { type: string }
         yes_required_parts: { type: array, items: { type: string } }
+    ReportFields:
+      type: object
+      description: |
+        이력 신고서 칸. 날짜는 YYYY-MM-DD(미래 불가), 소 칸은 내 소 끝 4자리(양수는 4자리·12자리 그대로)
+        - 출생: mother_tag4 · birth_date · sex(암|수) · breed (필수), calf_tag(12자리, 선택)
+        - 폐사: cow_tag · death_date
+        - 양도 · 양수: cow_tag · move_date · counterpart_farm_no(6자리) (필수), counterpart_name
+        - 이동(내 농장 다른 축사): cow_tag · move_date
+      additionalProperties: true
     PageResponse:
       type: object
       description: 목록 응답 (BaseResponse 의 data). 다음 요청에 next_cursor 를 그대로 넘긴다
