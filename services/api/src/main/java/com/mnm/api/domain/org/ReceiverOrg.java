@@ -43,4 +43,20 @@ public class ReceiverOrg {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false)
     private String inboxes = "[]";
+
+    /** 기관 추가 (A-S09). inboxes 는 JSON 문자열 */
+    public static ReceiverOrg create(String name, String type, String[] regionCodes, String phone, String inboxes) {
+        ReceiverOrg org = new ReceiverOrg();
+        org.update(name, type, regionCodes, phone, inboxes);
+        return org;
+    }
+
+    /** 편집 패널 저장 (A-S09). 전체 값을 바꾼다 */
+    public void update(String name, String type, String[] regionCodes, String phone, String inboxes) {
+        this.name = name;
+        this.type = type;
+        this.regionCodes = regionCodes;
+        this.phone = phone;
+        this.inboxes = inboxes;
+    }
 }

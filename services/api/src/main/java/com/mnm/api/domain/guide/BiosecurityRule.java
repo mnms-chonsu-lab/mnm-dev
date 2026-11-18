@@ -78,4 +78,46 @@ public class BiosecurityRule {
 
     @Column(name = "photo_part", length = 30)
     private String photoPart;
+
+    /** 문구 등록 (A-S05). 초안으로 시작한다 */
+    public static BiosecurityRule draft(String kind) {
+        BiosecurityRule rule = new BiosecurityRule();
+        rule.kind = kind;
+        return rule;
+    }
+
+    /** 게시된 문구를 고치면 이전 버전은 그대로 두고 새 버전(초안)을 만든다 (A-S05 "이전 버전 보관") */
+    public BiosecurityRule nextVersion() {
+        BiosecurityRule next = draft(kind);
+        next.version = version + 1;
+        return next;
+    }
+
+    /** 편집 패널 저장 (A-S05). 내용 전체를 바꾼다 */
+    public void edit(String disease, String stage, String text, String sourceDoc, String clause, LocalDate revisedAt,
+            Integer displayOrder, String exampleImage, String partCode, String photoPart, String yesRequiredParts) {
+        this.disease = disease;
+        this.stage = stage;
+        this.text = text;
+        this.sourceDoc = sourceDoc;
+        this.clause = clause;
+        this.revisedAt = revisedAt;
+        this.displayOrder = displayOrder;
+        this.exampleImage = exampleImage;
+        this.partCode = partCode;
+        this.photoPart = photoPart;
+        this.yesRequiredParts = yesRequiredParts;
+    }
+
+    /** draft | review | published. 게시할 때 검수자를 남긴다 */
+    public void changeStatus(String status, String reviewer) {
+        this.status = status;
+        if (reviewer != null) {
+            this.reviewer = reviewer;
+        }
+    }
+
+    public boolean isPublished() {
+        return "published".equals(status);
+    }
 }

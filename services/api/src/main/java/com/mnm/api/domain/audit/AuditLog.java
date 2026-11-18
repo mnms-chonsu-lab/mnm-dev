@@ -51,4 +51,15 @@ public class AuditLog {
 
     @JdbcTypeCode(SqlTypes.INET)
     private InetAddress ip;
+
+    /** 시각(at)은 DB 기본값으로 채운다 */
+    public static AuditLog of(User user, String action, String targetType, Long targetId, InetAddress ip) {
+        AuditLog log = new AuditLog();
+        log.user = user;
+        log.action = action;
+        log.targetType = targetType;
+        log.targetId = targetId;
+        log.ip = ip;
+        return log;
+    }
 }
