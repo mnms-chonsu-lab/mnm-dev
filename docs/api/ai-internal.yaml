@@ -25,7 +25,7 @@ paths:
       summary: 음성 → 글
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 503이 바로 온 경우만 1회 (mnm-dev#5 합의, 스테이징 실측으로 조정)
+        - 서버 재시도: 503이 바로 온 경우·연결 실패(응답 없음)일 때 1회 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: 글로 쓰기 화면 (F-S02T)
 
@@ -52,6 +52,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SttResponse'
+        '401':
+          description: '`STT-FAIL` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '422':
           description: '`STT-FAIL` — 입력 때문에 실패 (파일 형식·60초 초과·무음). 재시도하지 않음'
           content:
@@ -59,7 +65,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`STT-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도'
+          description: '`STT-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도 (연결 실패도 1회)'
           content:
             application/json:
               schema:
@@ -78,7 +84,7 @@ paths:
       summary: 농가 발화 → 일지·신고 항목 분류
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 503이 바로 온 경우만 1회 (mnm-dev#5 합의, 스테이징 실측으로 조정)
+        - 서버 재시도: 503이 바로 온 경우·연결 실패(응답 없음)일 때 1회 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: 선택형 입력 화면 (F-S03E)
 
@@ -98,6 +104,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RouteResponse'
+        '401':
+          description: '`LLM-FAIL` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '422':
           description: '`LLM-FAIL` — 입력 때문에 실패 (요청 형식 오류). 재시도하지 않음'
           content:
@@ -105,7 +117,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`LLM-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도'
+          description: '`LLM-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도 (연결 실패도 1회)'
           content:
             application/json:
               schema:
@@ -147,6 +159,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PartCheckResponse'
+        '401':
+          description: '`PART-FAIL` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '422':
           description: '`PART-FAIL` — 입력 때문에 실패 (요청 형식 오류). 재시도하지 않음'
           content:
@@ -193,6 +211,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BehaviorResponse'
+        '401':
+          description: '`BEHAVIOR-FAIL` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '422':
           description: '`BEHAVIOR-FAIL` — 입력 때문에 실패 (요청 형식 오류). 재시도하지 않음'
           content:
@@ -219,7 +243,7 @@ paths:
       summary: 공식 지침 조항 찾기 (원문 그대로 반환)
       description: '- 시간 제한: 8초 (`common.TIMEOUT_SEC`)
 
-        - 서버 재시도: 503일 때만 1회. `RAG-NONE`(404)은 안 함 (mnm-dev#5 합의, 스테이징 실측으로 조정)
+        - 서버 재시도: 503·연결 실패(응답 없음)일 때 1회. 근거 없음(404)은 안 함 (mnm-dev#5 합의, 스테이징 실측으로 조정)
 
         - 실패 시 대체 경로: [바로 신고]·담당 축협 연결
 
@@ -239,14 +263,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GuideResponse'
+        '401':
+          description: '`RAG-NONE` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '404':
           description: '`RAG-NONE` — 근거 조항 없음. `detail.fallback = true`. 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
+        '422':
+          description: '`RAG-NONE` — 요청 형식 오류 (`detail.reason = bad_request`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '503':
-          description: '`RAG-NONE` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도'
+          description: '`RAG-NONE` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도 (연결 실패도 1회)'
           content:
             application/json:
               schema:
@@ -285,6 +321,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SummaryResponse'
+        '401':
+          description: '`LLM-FAIL` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiError'
         '422':
           description: '`LLM-FAIL` — 입력 때문에 실패 (요청 형식 오류. 신고서 빈칸은 오류가 아님(200 + `missing`)). 재시도하지 않음'
           content:

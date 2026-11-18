@@ -19,10 +19,10 @@ META = {
     # retry_note: 재시도 규칙 설명. 504(시간 초과)는 모든 엔드포인트에서 재시도하지 않음
     #   (앱 타임아웃이 8초라 다시 부르면 앱이 먼저 끊김 — mnm-dev#5 합의)
     "stt": dict(file="stt.json", prefix="Stt", summary="음성 → 글", timeout=8,
-                retry503=True, retry_note="503이 바로 온 경우만 1회",
+                retry503=True, retry_note="503이 바로 온 경우·연결 실패(응답 없음)일 때 1회",
                 fallback="글로 쓰기 화면 (F-S02T)", spec=None),
     "route": dict(file="router.json", prefix="Route", summary="농가 발화 → 일지·신고 항목 분류",
-                  timeout=8, retry503=True, retry_note="503이 바로 온 경우만 1회",
+                  timeout=8, retry503=True, retry_note="503이 바로 온 경우·연결 실패(응답 없음)일 때 1회",
                   fallback="선택형 입력 화면 (F-S03E)", spec=None),
     "part_check": dict(file="part_check.json", prefix="PartCheck", summary="요청한 부위가 찍혔는지 확인",
                        timeout=10, retry503=False,
@@ -35,7 +35,7 @@ META = {
                      timeout=8, retry503=False, retry_note="연결 실패(응답 없음)일 때만 1회. 503·504는 안 함",
                      fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-11"),
     "guide": dict(file="guide.json", prefix="Guide", summary="공식 지침 조항 찾기 (원문 그대로 반환)",
-                  timeout=8, retry503=True, retry_note="503일 때만 1회. `RAG-NONE`(404)은 안 함",
+                  timeout=8, retry503=True, retry_note="503·연결 실패(응답 없음)일 때 1회. 근거 없음(404)은 안 함",
                   fallback="[바로 신고]·담당 축협 연결", spec=None),
     "summary": dict(file="summary.json", prefix="Summary", summary="접수자용 한 장 요약·신고서 6항목",
                     timeout=8, retry503=False, retry_note="안 함 (규칙 기반이라 결과 같음)",
@@ -98,12 +98,15 @@ for feature, m in META.items():
     responses = {"200": {"description": "성공", "content": {"application/json": {"schema": resp_ref}}}}
     if feature == "guide":
         responses["404"] = err("`RAG-NONE` — 근거 조항 없음. `detail.fallback = true`. 재시도하지 않음")
+        responses["422"] = err("`RAG-NONE` — 요청 형식 오류 (`detail.reason = bad_request`). 재시도하지 않음")
     else:
         example = {"stt": "파일 형식·60초 초과·무음", "summary": "요청 형식 오류. 신고서 빈칸은 오류가 아님(200 + `missing`)"}
         responses["422"] = err(f"`{code}` — 입력 때문에 실패 ({example.get(feature, '요청 형식 오류')}). 재시도하지 않음")
     responses["503"] = err(f"`{code}` — 외부 API·모델 호출 실패. "
-                           + ("바로 온 경우 서버가 1회 재시도" if m["retry503"] else "재시도하지 않음"))
+                           + ("바로 온 경우 서버가 1회 재시도 (연결 실패도 1회)" if m["retry503"] else "재시도하지 않음"))
     responses["504"] = err(f"`{code}` — 시간 제한 초과 ({m['timeout']}초). 재시도하지 않음")
+    responses["401"] = err(f"`{code}` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음")
+    responses = dict(sorted(responses.items()))
 
     paths[ep] = {"post": {
         "operationId": feature,
