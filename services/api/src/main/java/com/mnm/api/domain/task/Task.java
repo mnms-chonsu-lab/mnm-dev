@@ -49,4 +49,25 @@ public class Task {
     /** null = 미완료 */
     @Column(name = "done_at")
     private Instant doneAt;
+
+    public static Task create(FarmInfo farm, String kind, String title, LocalDate dueDate, Long refId) {
+        Task task = new Task();
+        task.farm = farm;
+        task.kind = kind;
+        task.title = title;
+        task.dueDate = dueDate;
+        task.refId = refId;
+        return task;
+    }
+
+    public void complete(Instant now) {
+        if (doneAt == null) {
+            doneAt = now;
+        }
+    }
+
+    /** 신고서 발생일이 바뀌면 기한도 다시 계산한 값으로 바꾼다 */
+    public void reschedule(LocalDate dueDate) {
+        this.dueDate = dueDate;
+    }
 }

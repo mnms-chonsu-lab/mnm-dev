@@ -52,4 +52,17 @@ public class Alert extends BaseTimeEntity {
 
     @Column(name = "read_at")
     private Instant readAt;
+
+    /** 알림함을 열면 읽음으로 표시한다 (홈 미확인 알림 수) */
+    public void markRead(Instant now) {
+        if (readAt == null) {
+            readAt = now;
+        }
+    }
+
+    /** 농가 피드백: seen(확인함) | ok(문제 없음). 피드백하면 읽은 것으로 본다 */
+    public void giveFeedback(String feedback, Instant now) {
+        this.feedback = feedback;
+        markRead(now);
+    }
 }

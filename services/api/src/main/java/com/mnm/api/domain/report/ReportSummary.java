@@ -42,4 +42,13 @@ public class ReportSummary extends BaseTimeEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "form6_json")
     private String form6Json;
+
+    /** 승인할 때 만드는 접수자용 요약. card·form6 은 JSON 문자열 */
+    public static ReportSummary create(SymptomReport symptomReport, String cardJson, String form6Json) {
+        ReportSummary summary = new ReportSummary();
+        summary.symptomReport = symptomReport;
+        summary.cardJson = cardJson;
+        summary.form6Json = form6Json;
+        return summary;
+    }
 }

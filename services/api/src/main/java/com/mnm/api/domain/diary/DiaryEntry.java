@@ -61,4 +61,25 @@ public class DiaryEntry {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "audio_media_id")
     private FieldMedia audioMedia;
+
+    /** 확인된 일지 항목 저장 (FARM-04). 음성 원본은 MVP에서 저장하지 않는다 */
+    public static DiaryEntry record(FarmInfo farm, LocalDate date, String category, Cow cow, String value,
+            String vaccineType, Integer headCount, String rawText) {
+        DiaryEntry entry = new DiaryEntry();
+        entry.farm = farm;
+        entry.rawText = rawText;
+        entry.revise(date, category, cow, value, vaccineType, headCount);
+        return entry;
+    }
+
+    /** 기록 고치기 (FARM-26). 원래 말(raw_text)은 바꾸지 않는다 */
+    public void revise(LocalDate date, String category, Cow cow, String value, String vaccineType,
+            Integer headCount) {
+        this.date = date;
+        this.category = category;
+        this.cow = cow;
+        this.value = value;
+        this.vaccineType = vaccineType;
+        this.headCount = headCount;
+    }
 }
