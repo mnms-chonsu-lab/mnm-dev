@@ -55,4 +55,42 @@ public class HistoryReport {
     /** draft | sent | checking | done */
     @Column(nullable = false, length = 20)
     private String status = "draft";
+
+    /** 일지에서 만든 신고서 초안. fields·missing 은 JSON 문자열 */
+    public static HistoryReport draft(FarmInfo farm, String type, String fields, String missing, LocalDate dueDate) {
+        HistoryReport report = new HistoryReport();
+        report.farm = farm;
+        report.type = type;
+        report.status = "draft";
+        report.fillFields(fields, missing, dueDate);
+        return report;
+    }
+
+    /** 빈칸 채우기 (FARM-07). 발생일이 바뀌면 다시 계산한 기한을 넣는다 */
+    public void fillFields(String fields, String missing, LocalDate dueDate) {
+        this.fields = fields;
+        this.missing = missing;
+        this.dueDate = dueDate;
+    }
+
+    /** 직접 제출: 농가가 이력제에 신고를 마쳤다고 표시 (FARM-09 mode=self) */
+    public void finishSelf() {
+        this.mode = "self";
+        this.status = "done";
+    }
+
+    /** 축협에 부탁: 담당 축협 수신함으로 보냈다 (FARM-09 mode=coop) */
+    public void sendToCoop() {
+        this.mode = "coop";
+        this.status = "sent";
+    }
+
+    public boolean isDraft() {
+        return "draft".equals(status);
+    }
+
+    /** 초안의 양도 · 양수 · 이동 구분을 농가가 바꾼다 (F-S04M) */
+    public void changeMoveType(String type) {
+        this.type = type;
+    }
 }

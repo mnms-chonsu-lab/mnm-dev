@@ -106,4 +106,9 @@ public class User extends BaseTimeEntity {
         passwordHash = newPasswordHash;
         mustChangePw = false;
     }
+
+    /** 농가 연락처 변경 (F-P06). 농가는 이 번호로 다음에 로그인한다 */
+    public void changePhone(String phone) {
+        this.phone = phone;
+    }
 }

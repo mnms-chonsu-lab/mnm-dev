@@ -85,6 +85,19 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | 오류 | 토큰 없음·만료·위조 `AUTH-401`, 역할 불일치 `AUTH-403`, 정지 계정 `AUTH-SUSPENDED`, 정보 불일치 `AUTH-FAIL` |
 | 컨트롤러에서 내 계정 | `@AuthenticationPrincipal Jwt jwt` → `Long.valueOf(jwt.getSubject())` |
 
+## 농가 앱 API (`farmer`)
+
+경로·요청·응답은 `docs/api/openapi.yaml`의 "농가 앱" 태그와 스웨거(`/docs/farmer`)를 봅니다.
+
+| 항목 | 내용 |
+| --- | --- |
+| AI 호출 | `global/ai/AiClient`(stt·route·summary). 지금 구현은 `MockAiClient`뿐입니다. mnm-ai 내부 API 서버가 배포되면 HTTP 구현으로 바꿉니다 |
+| AI 실패 | `AiException`을 받아 대체 경로로 진행합니다. 음성 인식 실패 → `fallback=text_input`, 정리 실패 → `fallback=select_input`, 요약 실패 → 원본 기록만 |
+| 규칙 | `farmer/FarmerRules`: 신고 기한(토·일·공휴일 제외 5일)·귀표 30일·촬영 부위·질병별 안내 분기·신고서 빈칸. mnm-ai `rules/`와 같은 값이며, mnm-ai 서버가 `/rules/*`를 열지 않아 서버에서 계산합니다 |
+| 이력제 조회 | `farmer/TraceClient`. 지금은 `MockTraceClient`: 마지막 자리 `0` = 못 찾음, `008…` = 다른 농장, `009…` = 조회 실패 |
+| 저장하지 않는 것 | 음성 원본(MVP), 알림 생성(기한 D-3·D-1·평소와 다름 스케줄러는 MVP 제외). 처리 결과 알림은 접수자 상태 변경에서 생깁니다 |
+| 전달 | `POST /api/farmer/deliveries`, `POST /api/farmer/history-reports/{id}/submit`(coop)는 `Idempotency-Key` 필수. 전달할 때 일지에 "신고"를 자동으로 남깁니다 |
+
 ## DB 마이그레이션 (Flyway)
 
 - 서버가 시작할 때 Flyway 가 `src/main/resources/db/migration`(스키마)과 `db/seed`(시연용 계정)를 적용한 뒤, Hibernate 가 엔티티와 테이블을 검사합니다.

@@ -53,4 +53,17 @@ public class SymptomReport extends BaseTimeEntity {
 
     @Column(length = 50)
     private String barn;
+
+    /** 소 상태 기록 저장 (FARM-11). answers 는 JSON 문자열, matchedCount 는 "예"로 답한 공식 질문 수 */
+    public static SymptomReport create(FarmInfo farm, Cow cow, String answers, short matchedCount, Instant foundAt,
+            String barn) {
+        SymptomReport report = new SymptomReport();
+        report.farm = farm;
+        report.cow = cow;
+        report.answers = answers;
+        report.matchedCount = matchedCount;
+        report.foundAt = foundAt;
+        report.barn = barn;
+        return report;
+    }
 }
