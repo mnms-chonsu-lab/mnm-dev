@@ -99,9 +99,7 @@ class AuthService {
             throw user.isLocked(now) ? locked(user, now) : new BusinessException(ErrorCode.AUTH_FAIL, "로그인 정보 불일치");
         }
         if (!user.isActive()) {
-            // 명세에 정지 계정 코드가 없어 AUTH-403 을 쓴다 (제안)
-            throw new BusinessException(ErrorCode.AUTH_FORBIDDEN,
-                    "로그인할 수 없는 계정이에요. 담당 축협에 물어보세요.", "정지된 계정");
+            throw new BusinessException(ErrorCode.AUTH_SUSPENDED, "정지된 계정");
         }
         user.recordLoginSuccess(now);
     }

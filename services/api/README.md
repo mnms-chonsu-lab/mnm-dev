@@ -42,6 +42,7 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | --- | --- | --- |
 | `AUTH-401` | 401 | 로그인 만료 |
 | `AUTH-403` | 403 | 권한 없음 (관할 밖 포함) |
+| `AUTH-SUSPENDED` | 403 | 정지된 계정 로그인 |
 | `AUTH-FAIL` | 401 | 로그인 정보 불일치 |
 | `AUTH-LOCK` | 423 | 5회 실패 → 10분 잠금 |
 | `VALID-422` | 422 | 검증 실패 · 잘못된 JSON · 파라미터 오류 |
@@ -81,7 +82,7 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | 역할별 경로 | `/api/farmer/**` 농가 · `/api/receiver/**` 접수자 · `/api/admin/**` 운영자 · `/api/auth/**` 로그인한 누구나 |
 | 임시 비밀번호 | `must_change_pw=true` 토큰은 역할 권한이 없어 `/api/auth/**`만 쓸 수 있음 → `POST /api/auth/password` 후 새 토큰 |
 | 잠금 | 연속 5번 틀리면 10분(`users.failed_count`, `locked_until`). 잠긴 동안은 맞게 넣어도 `AUTH-LOCK` |
-| 오류 | 토큰 없음·만료·위조 `AUTH-401`, 역할 불일치·정지 계정 `AUTH-403`, 정보 불일치 `AUTH-FAIL` |
+| 오류 | 토큰 없음·만료·위조 `AUTH-401`, 역할 불일치 `AUTH-403`, 정지 계정 `AUTH-SUSPENDED`, 정보 불일치 `AUTH-FAIL` |
 | 컨트롤러에서 내 계정 | `@AuthenticationPrincipal Jwt jwt` → `Long.valueOf(jwt.getSubject())` |
 
 ## DB 마이그레이션 (Flyway)

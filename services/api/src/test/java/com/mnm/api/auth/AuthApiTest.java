@@ -121,7 +121,7 @@ class AuthApiTest {
         farmer("suspended");
         loginFarmer(FARM_NO, PHONE)
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("AUTH-403"));
+                .andExpect(jsonPath("$.code").value("AUTH-SUSPENDED"));
     }
 
     // ---- 접수자·운영자 (AUTH-02, AUTH-04) ----

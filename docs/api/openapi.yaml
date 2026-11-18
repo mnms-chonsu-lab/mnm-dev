@@ -20,7 +20,7 @@ paths:
       summary: 농가 로그인 (AUTH-01, F-S00)
       description: |
         농장식별번호 + 휴대폰 번호(하이픈 있어도 됨)가 같은 계정이면 토큰(30일)을 준다. 가입 없음 — 계정은 어드민에서 만든다.
-        틀린 횟수는 그 농장 계정에 센다. 5번째에 10분 잠금(AUTH-LOCK, message 에 남은 분). 정지 계정은 AUTH-403.
+        틀린 횟수는 그 농장 계정에 센다. 5번째에 10분 잠금(AUTH-LOCK, message 에 남은 분). 정지 계정은 AUTH-SUSPENDED.
       security: []
       requestBody:
         required: true
@@ -35,7 +35,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Login' }
         '401': { description: AUTH-FAIL }
-        '403': { description: AUTH-403 (정지된 계정) }
+        '403': { description: AUTH-SUSPENDED (정지된 계정) }
         '422': { description: VALID-422 }
         '423': { description: AUTH-LOCK }
   /api/auth/login:
@@ -60,7 +60,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Login' }
         '401': { description: AUTH-FAIL }
-        '403': { description: AUTH-403 (정지된 계정) }
+        '403': { description: AUTH-SUSPENDED (정지된 계정) }
         '423': { description: AUTH-LOCK }
   /api/auth/password:
     post:
@@ -169,6 +169,7 @@ components:
             |---|---|---|
             | AUTH-401 | 401 | 로그인 만료 |
             | AUTH-403 | 403 | 권한 없음 (관할 밖 포함) |
+            | AUTH-SUSPENDED | 403 | 정지된 계정 로그인 |
             | AUTH-FAIL | 401 | 로그인 정보 불일치 |
             | AUTH-LOCK | 423 | 5회 실패 → 10분 잠금 |
             | VALID-422 | 422 | 입력 오류 · 잘못된 JSON · 파라미터 오류 |
