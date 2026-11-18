@@ -55,4 +55,17 @@ public class ReceiverCheck {
     @Generated
     @Column(nullable = false)
     private Instant at;
+
+    /** 상태 변경 · 메모 1건. 시각(at)은 DB 기본값으로 채운다 */
+    public static ReceiverCheck record(Delivery delivery, ReceiverOrg org, User user, String status, String result,
+            String memo) {
+        ReceiverCheck check = new ReceiverCheck();
+        check.delivery = delivery;
+        check.org = org;
+        check.user = user;
+        check.status = status;
+        check.result = result;
+        check.memo = memo;
+        return check;
+    }
 }

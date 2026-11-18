@@ -65,4 +65,15 @@ public class Alert extends BaseTimeEntity {
         this.feedback = feedback;
         markRead(now);
     }
+
+    /** 농가 알림함에 넣는다. 시각(created_at)은 DB 기본값으로 채운다 */
+    public static Alert create(User user, String kind, String title, String body, Long refId) {
+        Alert alert = new Alert();
+        alert.user = user;
+        alert.kind = kind;
+        alert.title = title;
+        alert.body = body;
+        alert.refId = refId;
+        return alert;
+    }
 }

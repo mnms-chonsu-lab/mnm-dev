@@ -93,4 +93,20 @@ public class HistoryReport {
     public void changeMoveType(String type) {
         this.type = type;
     }
+
+    /** 축협 접수자가 확인을 시작했다 (RCV-03 · RCV-04). 부탁받은 신고서만 바뀐다 */
+    public void startCoopCheck() {
+        if ("sent".equals(status)) {
+            this.status = "checking";
+        }
+    }
+
+    /** 축협 접수자가 이력제에 대신 신고했다 (RCV-10) */
+    public void finishByCoop() {
+        this.status = "done";
+    }
+
+    public boolean isDone() {
+        return "done".equals(status);
+    }
 }
