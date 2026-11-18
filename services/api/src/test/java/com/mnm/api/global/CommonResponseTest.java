@@ -13,11 +13,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.mnm.api.TestTokens;
 import jakarta.servlet.RequestDispatcher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -27,22 +34,25 @@ import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * 공통 응답 형식 · 전역 예외 처리 · request_id · 스웨거 · CORS 를 실제 설정 그대로 확인한다.
- * DB 없이 띄우기 위해 Hibernate 가 시작할 때 DB 에 접속하지 않도록 한다.
+ * DB 없이 띄운다 (nodb 프로필). 테스트 경로가 /api/farmer 아래라 모든 요청에 농가 토큰을 붙인다.
  */
-@SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:postgresql://localhost:1/none",
-        "spring.datasource.username=none",
-        "spring.datasource.password=none",
-        "spring.jpa.hibernate.ddl-auto=none",
-        "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
-        "spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false",
-        "mnm.cors.allowed-origins=https://farmer.example.com",
-})
+@SpringBootTest(properties = "mnm.cors.allowed-origins=https://farmer.example.com")
+@ActiveProfiles("nodb")
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension.class)
 class CommonResponseTest {
 
     private static final String BASE = "/api/farmer/_test";
+
+    @TestConfiguration
+    static class FarmerTokenByDefault {
+
+        @Bean
+        MockMvcBuilderCustomizer farmerToken(JwtEncoder jwtEncoder) {
+            return builder -> builder.defaultRequest(get("/").header(HttpHeaders.AUTHORIZATION,
+                    TestTokens.bearer(jwtEncoder, "farmer")));
+        }
+    }
 
     @Autowired
     MockMvc mvc;

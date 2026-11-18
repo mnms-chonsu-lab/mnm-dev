@@ -10,10 +10,135 @@ info:
     - 성공 응답은 { data, request_id }. 목록은 data 안에 { items, has_next, next_cursor }. 본문이 없으면 204
     - 오류 응답은 ErrorResponse. 농가 화면은 message 만, 접수자·어드민은 request_id 를 "오류 번호"로 표시
     - 모든 응답 헤더에 X-Request-Id (본문의 request_id 와 같은 값)
-    - 인증은 Authorization: Bearer {토큰}
+    - 인증은 Authorization: Bearer {토큰}. 토큰 없음·만료·위조는 AUTH-401, 역할이 맞지 않으면 AUTH-403
+      (/api/farmer = 농가, /api/receiver = 접수자, /api/admin = 운영자)
     - 중복되면 안 되는 요청(신고 전달)은 Idempotency-Key 헤더 필수. 없으면 VALID-422, 이미 처리된 키면 CONFLICT-409
-paths: {}
+paths:
+  /api/auth/farmer/login:
+    post:
+      tags: [인증]
+      summary: 농가 로그인 (AUTH-01, F-S00)
+      description: |
+        농장식별번호 + 휴대폰 번호(하이픈 있어도 됨)가 같은 계정이면 토큰(30일)을 준다. 가입 없음 — 계정은 어드민에서 만든다.
+        틀린 횟수는 그 농장 계정에 센다. 5번째에 10분 잠금(AUTH-LOCK, message 에 남은 분). 정지 계정은 AUTH-SUSPENDED.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [farm_no, phone]
+              properties:
+                farm_no: { type: string, pattern: '^\d{6}$', example: '448012' }
+                phone: { type: string, example: 010-0000-0937 }
+      responses:
+        '200': { $ref: '#/components/responses/Login' }
+        '401': { description: AUTH-FAIL }
+        '403': { description: AUTH-SUSPENDED (정지된 계정) }
+        '422': { description: VALID-422 }
+        '423': { description: AUTH-LOCK }
+  /api/auth/login:
+    post:
+      tags: [인증]
+      summary: 접수자·운영자 로그인 (AUTH-02, R-S01)
+      description: |
+        운영자가 발급한 아이디·비밀번호. 토큰 8시간. 운영자도 같은 API (role 로 화면 구분).
+        must_change_pw 가 true(임시 비밀번호)면 AUTH-04 로 바꾸기 전까지 /api/receiver · /api/admin 은 AUTH-403.
+        잠금·정지는 농가 로그인과 같다.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login_id, password]
+              properties:
+                login_id: { type: string, example: hs-bio }
+                password: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Login' }
+        '401': { description: AUTH-FAIL }
+        '403': { description: AUTH-SUSPENDED (정지된 계정) }
+        '423': { description: AUTH-LOCK }
+  /api/auth/password:
+    post:
+      tags: [인증]
+      summary: 임시 비밀번호 변경 (AUTH-04, R-S06)
+      description: 임시 비밀번호로 로그인한 토큰으로만 부른다(아니면 AUTH-403). 새 토큰을 돌려준다. 확인 칸 일치는 화면에서 검사
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                new_password: { type: string, description: '8자 이상 영문·숫자 조합, 임시 비밀번호와 달라야 함' }
+      responses:
+        '200': { $ref: '#/components/responses/Login' }
+        '403': { description: AUTH-403 (임시 비밀번호 상태가 아님) }
+        '422': { description: VALID-422 (규칙 위반 · 임시 비밀번호와 같음) }
+  /api/auth/me:
+    get:
+      tags: [인증]
+      summary: 내 계정·역할·소속 (AUTH-03)
+      responses:
+        '200':
+          description: 농가는 farm, 접수자는 org · inbox_id 가 채워진다
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      users_id: { type: integer }
+                      role: { type: string, enum: [farmer, receiver, admin] }
+                      name: { type: string }
+                      phone: { type: string, nullable: true }
+                      login_id: { type: string, nullable: true }
+                      must_change_pw: { type: boolean }
+                      org:
+                        type: object
+                        nullable: true
+                        properties:
+                          org_id: { type: integer }
+                          name: { type: string }
+                          type: { type: string }
+                          region_codes: { type: array, items: { type: string } }
+                      inbox_id: { type: string, nullable: true }
+                      farm:
+                        type: object
+                        nullable: true
+                        properties:
+                          farm_id: { type: integer }
+                          farm_no: { type: string }
+                          name: { type: string }
+                          head_count: { type: integer, nullable: true }
+                          org_id: { type: integer, nullable: true, description: 담당 축협 }
+                          org_name: { type: string, nullable: true }
+                  request_id: { type: string }
+        '401': { description: AUTH-401 }
 components:
+  responses:
+    Login:
+      description: 로그인 성공. 이후 요청에 Authorization 'Bearer {access_token}'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  expires_at: { type: string, format: date-time, description: '농가 30일, 접수자·운영자 8시간' }
+                  role: { type: string, enum: [farmer, receiver, admin] }
+                  must_change_pw: { type: boolean, description: 'true 면 R-S06 으로' }
+              request_id: { type: string }
   securitySchemes:
     bearer:
       type: http
@@ -44,6 +169,7 @@ components:
             |---|---|---|
             | AUTH-401 | 401 | 로그인 만료 |
             | AUTH-403 | 403 | 권한 없음 (관할 밖 포함) |
+            | AUTH-SUSPENDED | 403 | 정지된 계정 로그인 |
             | AUTH-FAIL | 401 | 로그인 정보 불일치 |
             | AUTH-LOCK | 423 | 5회 실패 → 10분 잠금 |
             | VALID-422 | 422 | 입력 오류 · 잘못된 JSON · 파라미터 오류 |

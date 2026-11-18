@@ -68,6 +68,7 @@
 
 ### 엔티티·DB
 - DB 구조는 `mnm-data/migrations`에서만 바꿉니다. 이 레포에서는 테이블·컬럼을 만들거나 바꾸지 않고, 엔티티를 스키마에 맞춥니다.
+- `services/api/src/main/resources/db/migration`은 `mnm-data/migrations`의 사본(Flyway, 서버 시작 시 적용)입니다. 직접 고치지 않고, mnm-data 에 새 파일이 머지되면 다음 `V` 번호로 복사합니다(`BEGIN;`·`COMMIT;` 줄만 뺌).
 - 서버는 시작할 때 엔티티와 테이블이 맞는지 검사합니다(`JPA_DDL_AUTO` 기본 `validate`). 맞지 않으면 서버가 뜨지 않습니다.
 - `created_at`이 있는 테이블의 엔티티는 `BaseTimeEntity`를 상속합니다. 값은 DB 기본값으로 채웁니다.
 - 엔티티는 `@Getter` + `@NoArgsConstructor(access = PROTECTED)`만 두고 setter를 열지 않습니다. 값 변경은 의미 있는 이름의 메서드로 합니다.

@@ -1,7 +1,8 @@
 # 뼈대 — 실제 빌드 설정은 services/api, infra/docker에서 채웁니다.
 services:
   db:
-    image: postgres:16
+    # 마이그레이션 V3 이 pgvector 확장을 쓴다. 스테이징 Cloud DB 와 같은 17
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: mnm
       POSTGRES_USER: mnm

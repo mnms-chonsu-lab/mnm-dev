@@ -17,6 +17,8 @@ public enum ErrorCode {
 
     AUTH_EXPIRED("AUTH-401", HttpStatus.UNAUTHORIZED, "다시 로그인해 주세요. 쓰던 기록은 그대로 있어요."),
     AUTH_FORBIDDEN("AUTH-403", HttpStatus.FORBIDDEN, "볼 수 없는 화면이에요."),
+    /** 정지된 계정 로그인. AUTH-403 과 화면 처리가 달라 따로 둔다 (로그인 화면 입력 칸 아래 안내) */
+    AUTH_SUSPENDED("AUTH-SUSPENDED", HttpStatus.FORBIDDEN, "로그인할 수 없는 계정이에요. 담당 기관에 물어보세요."),
     AUTH_FAIL("AUTH-FAIL", HttpStatus.UNAUTHORIZED, "농장식별번호나 휴대폰 번호를 다시 확인해 주세요."),
     /** 남은 시간이 들어간 문구는 인증 구현에서 BusinessException 의 message 로 넘긴다 */
     AUTH_LOCK("AUTH-LOCK", HttpStatus.LOCKED, "5번 틀려서 10분 동안 로그인할 수 없어요. 농장식별번호는 담당 축협에 물어보세요."),

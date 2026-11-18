@@ -59,7 +59,7 @@ cp .env.example .env      # 키 값 채우기
 | 백엔드 테스트 | `cd services/api && ./gradlew build` | 동작 — PR CI(`ci.yml`)와 같은 명령 |
 | 전체 실행 | `docker compose up -d` | 🚧 뼈대만 있음 (`docker-compose.yml`의 `mnm-ai` 이미지·DB 초기화는 미확인) |
 
-`docker-compose.yml` 구성: `db`(postgres:16), `api`(`services/api` 빌드, 포트 `8080`), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 패키지 읽기 권한이 있는 토큰으로 `docker login ghcr.io` 한 뒤에 받을 수 있습니다.
+`docker-compose.yml` 구성: `db`(pgvector/pgvector:pg17 — 마이그레이션 V3 이 pgvector 확장 사용), `api`(`services/api` 빌드, 포트 `8080`), `mnm-ai`(`ghcr.io/mnms-chonsu-lab/mnm-ai-inference:latest`). private GHCR 이미지는 패키지 읽기 권한이 있는 토큰으로 `docker login ghcr.io` 한 뒤에 받을 수 있습니다.
 
 > 모델 가중치·원본 데이터는 git에 넣지 않습니다. Object Storage / MLflow에서 가져와 사용합니다.
 
@@ -68,14 +68,18 @@ cp .env.example .env      # 키 값 채우기
 ## 환경변수
 
 값은 `.env.example`을 복사해 `.env`에 채웁니다. 실제 키는 커밋하지 않습니다.
-지금 코드·설정이 읽는 키만 적었습니다. 인증(JWT)·AI 연동·파일 저장소 키는 해당 기능을 붙이는 PR에서 추가합니다.
+지금 코드·설정이 읽는 키만 적었습니다. AI 연동·파일 저장소 키는 해당 기능을 붙이는 PR에서 추가합니다.
 
 | 변수 | 위치 | 용도 | 없으면 |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | `services/api` | PostgreSQL 접속 문자열 (JDBC 형식) | API가 뜨지 않음 |
 | `DATABASE_USERNAME` | `services/api` | DB 사용자 | API가 뜨지 않음 |
 | `DATABASE_PASSWORD` | `services/api` | DB 비밀번호 | API가 뜨지 않음 |
-| `JPA_DDL_AUTO` | `services/api` | 엔티티-테이블 검사 방식 | 기본 `validate` (테이블 없는 DB는 `none`) |
+| `JPA_DDL_AUTO` | `services/api` | 엔티티-테이블 검사 방식 | 기본 `validate` (테이블은 시작할 때 Flyway 가 만듦) |
+| `JWT_SECRET` | `services/api` | 로그인 토큰 서명 키 (32바이트 이상) | API가 뜨지 않음 |
+| `SPRING_FLYWAY_USER` · `SPRING_FLYWAY_PASSWORD` | `services/api` | Flyway(테이블 생성·변경)만 쓰는 DB 계정. 앱 계정을 읽기·쓰기 전용으로 나눴을 때 owner 계정을 넣음 | `DATABASE_USERNAME`·`DATABASE_PASSWORD` 사용 |
+| `FLYWAY_LOCATIONS` | `services/api` | 마이그레이션 위치 | 스키마 + 시연용 계정 시드 (`classpath:db/migration,classpath:db/seed`) |
+| `FLYWAY_BASELINE_VERSION` | `services/api` | Flyway 도입 전에 psql 로 스키마를 넣은 DB 를 이 버전까지 적용된 것으로 기록 | `3` (빈 DB 에는 영향 없음) |
 | `CORS_ALLOWED_ORIGINS` | `services/api` | 다른 도메인에서 API를 부를 프론트 주소 (쉼표 구분) | CORS 꺼짐 (같은 도메인 호출만 가능) |
 | `POSTGRES_PASSWORD` | 로컬 `docker-compose.yml` | 로컬 postgres 비밀번호 | 기본값 `mnm` |
 | `DOMAIN` | 배포 서버 | nginx HTTPS 인증서 도메인 | HTTPS 인증서 발급 불가 |
@@ -90,7 +94,7 @@ cp .env.example .env      # 키 값 채우기
 | 영역 | 기술 | 용도 |
 | --- | --- | --- |
 | 백엔드 | Java 21 · Spring Boot 4.1 · Gradle | REST API, 스웨거(springdoc) |
-| DB | PostgreSQL 16 | 일지·신고서·요약 카드 저장 (스키마는 `mnm-data/migrations`) |
+| DB | PostgreSQL 17 (pgvector) · Flyway | 일지·신고서·요약 카드 저장 (스키마는 `mnm-data/migrations`, 서버 시작 시 Flyway 로 적용) |
 | 파일 저장소 | 네이버 클라우드 Object Storage (🚧 구축 전) | 사진·음성·영상 원본 (DB에는 경로만) |
 | 배포 | Docker, nginx, GitHub Actions, 네이버 클라우드 서버 | `develop` 머지 → 스테이징 자동 배포 (HTTPS: Let's Encrypt) |
 | 모니터링 | 🚧 미정 | 운영 로그·지표, 5xx 알람 (REQ-OPS-06) |
@@ -151,7 +155,7 @@ mnm-dev/
 | 방향 | 규칙 |
 | --- | --- |
 | mnm-ai → mnm-dev | mnm-ai는 `main` 머지 시 GitHub Actions로 이미지를 GHCR(`ghcr.io/mnms-chonsu-lab/mnm-ai-*`)에 올립니다. 이 레포는 태그로 그 이미지를 가져다 씁니다. **입출력 형식은 `mnm-ai/schemas`가 기준**입니다 |
-| mnm-data → mnm-dev | DB 구조 변경은 `mnm-data/migrations`에서만 합니다. 이 레포의 백엔드는 그 마이그레이션을 적용해서 씁니다 (스키마 직접 변경 금지) |
+| mnm-data → mnm-dev | DB 구조 변경은 `mnm-data/migrations`에서만 합니다. 이 레포의 백엔드는 그 파일 사본(`services/api/src/main/resources/db/migration`)을 서버 시작 시 Flyway 로 적용합니다 (사본 직접 수정 금지) |
 | API 명세 | `docs/api/openapi.yaml`이 기준입니다. 바꿀 땐 PR에 관련 레포 담당자를 리뷰어로 지정합니다 |
 | PR 링크 | 다른 레포에 영향을 주는 PR은 본문에 관련 레포 PR·이슈 링크를 반드시 넣습니다 |
 
