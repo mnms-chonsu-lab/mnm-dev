@@ -9,7 +9,7 @@
 | Server (스테이징) | `mnm-api` + nginx 컨테이너 실행 (`infra/docker/compose.deploy.yml`) | 운영 중 |
 | Cloud DB for PostgreSQL | 운영 DB. 스키마는 `mnm-data/migrations` | 운영 중 |
 | ACG | 서버·DB 접근 제어 | 운영 중 |
-| Object Storage | 사진·음성·영상 원본 (DB에는 경로만) | 🚧 구축 전 |
+| Object Storage | 사진·음성·영상 원본 (DB에는 경로만) | 운영 중 (스테이징 버킷) |
 
 - 배포 이미지는 GHCR(`ghcr.io/mnms-chonsu-lab/mnm-api`)에 올리고, `.github/workflows/deploy.yml`이 SSH로 서버에 배포합니다.
 - 비밀값(DB 접속 정보 등)은 서버 `~/mnm/.env`와 GitHub Secrets에만 둡니다. 여기에 적지 않습니다.
@@ -46,3 +46,26 @@ echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf
 sudo sysctl -p /etc/sysctl.d/99-swappiness.conf
 free -h   # Swap 2.0Gi 확인
 ```
+
+## Object Storage
+
+| 항목 | 값 |
+| --- | --- |
+| 버킷 | `mnm-raw-stg` (스테이징) |
+| 엔드포인트 | `https://kr.object.ncloudstorage.com` · 리전 `kr-standard` |
+| 공개 여부 | 비공개 (서명 없는 주소는 403) |
+| 접근 방식 | 서버: 접근 키 / AI 서버·앱: 서명 URL (`s3v4`) |
+| CORS | 설정 없음 — 브라우저 직접 업로드가 필요하면 추가 (#24) |
+| 키 | ETL(mnms-chonsu-lab/mnm-data#1)과 같은 키. 서비스용 분리 (제안) |
+
+11/20 점검 (#24, 스테이징 서버에서 실행):
+
+| 점검 | 결과 |
+| --- | --- |
+| 버킷 접근 · 키로 업로드 · 다운로드 | 통과 |
+| 서명 없는 주소 | 403 (비공개) |
+| 서명 URL 다운로드 · 업로드 | 200 |
+| 9MB 서명 URL 다운로드 (무작위 9MB 파일, 서버 → 버킷, 3회) | 0.06~0.10초 |
+
+- 최신 `boto3`는 `request_checksum_calculation="when_required"`를 주지 않으면 업로드가 `AccessDenied`로 실패합니다 (mnms-chonsu-lab/mnm-data#1).
+- 키 값은 여기에 적지 않습니다. 서버 `.env`와 GitHub Secrets에만 둡니다.
