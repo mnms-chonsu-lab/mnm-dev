@@ -264,7 +264,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GuideResponse'
         '401':
-          description: '`RAG-NONE` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
+          description: '`LLM-FAIL` — `X-Internal-Token`이 없거나 틀림 (`detail.reason = unauthorized`). 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -276,19 +276,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/AiError'
         '422':
-          description: '`RAG-NONE` — 요청 형식 오류 (`detail.reason = bad_request`). 재시도하지 않음'
+          description: '`LLM-FAIL` — 요청 형식 오류 (`detail.reason = bad_request`). 재시도하지 않음'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '503':
-          description: '`RAG-NONE` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도 (연결 실패도 1회)'
+          description: '`LLM-FAIL` — 외부 API·모델 호출 실패. 바로 온 경우 서버가 1회 재시도 (연결 실패도 1회)'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AiError'
         '504':
-          description: '`RAG-NONE` — 시간 제한 초과 (8초). 재시도하지 않음'
+          description: '`LLM-FAIL` — 시간 제한 초과 (8초). 재시도하지 않음'
           content:
             application/json:
               schema:
@@ -551,7 +551,10 @@ components:
       additionalProperties: false
       properties:
         code:
-          const: RAG-NONE
+          description: 'RAG-NONE: 근거 조항 없음 (404). LLM-FAIL: 검색·선택 호출 실패 (503), 시간 초과 (504)'
+          enum:
+          - RAG-NONE
+          - LLM-FAIL
           title: Code
           type: string
         message:

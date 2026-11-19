@@ -82,7 +82,10 @@ for feature, m in META.items():
     d = json.loads((SCHEMAS / m["file"]).read_text())
     ep = d["endpoint"]
     p = m["prefix"]
-    code = d["error"]["properties"]["code"]["const"]
+    # 오류 코드: 대부분 const 하나, guide 는 enum(RAG-NONE, LLM-FAIL) — 근거 없음(404)만 RAG-NONE, 나머지는 장애 코드
+    code_schema = d["error"]["properties"]["code"]
+    codes = [code_schema["const"]] if "const" in code_schema else list(code_schema["enum"])
+    code = next((c for c in codes if c != "RAG-NONE"), codes[0])
     hoist(d["error"], p, f"{p}Error")
     resp_ref = hoist(d["response"], p, f"{p}Response")
 
@@ -98,7 +101,7 @@ for feature, m in META.items():
     responses = {"200": {"description": "성공", "content": {"application/json": {"schema": resp_ref}}}}
     if feature == "guide":
         responses["404"] = err("`RAG-NONE` — 근거 조항 없음. `detail.fallback = true`. 재시도하지 않음")
-        responses["422"] = err("`RAG-NONE` — 요청 형식 오류 (`detail.reason = bad_request`). 재시도하지 않음")
+        responses["422"] = err(f"`{code}` — 요청 형식 오류 (`detail.reason = bad_request`). 재시도하지 않음")
     else:
         example = {"stt": "파일 형식·60초 초과·무음", "summary": "요청 형식 오류. 신고서 빈칸은 오류가 아님(200 + `missing`)"}
         responses["422"] = err(f"`{code}` — 입력 때문에 실패 ({example.get(feature, '요청 형식 오류')}). 재시도하지 않음")
