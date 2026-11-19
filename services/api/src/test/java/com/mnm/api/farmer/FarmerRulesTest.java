@@ -69,6 +69,29 @@ class FarmerRulesTest {
         assertThat(FarmerRules.matchedSymptoms(answers)).containsExactly("침 흘림", "사료 남김");
     }
 
+    @ParameterizedTest(name = "{0}={1} → {2}")
+    @CsvSource({
+            // mnm-ai report_state.py _tag4 · _date · _sex 와 같은 기준 (형식이 틀리면 빈칸)
+            "mother_tag4, 0871, 0871",
+            "mother_tag4, 08712, ",
+            "cow_tag, 002 1234 5087 1, 002123450871",
+            "sex, 암컷, 암",
+            "sex, 수소, 수",
+            "sex, 몰라, ",
+            "birth_date, 2026-11-01T09:00:00, 2026-11-01",
+            "birth_date, 11월 1일, ",
+            "calf_tag, 12345, ",
+            "counterpart_farm_no, 448012, 448012",
+    })
+    void 신고서_칸은_형식이_틀리면_빈칸(String key, String value, String expected) {
+        assertThat(FarmerRules.normalize(key, value)).isEqualTo(expected);
+    }
+
+    @Test
+    void 미래_날짜는_빈칸() {
+        assertThat(FarmerRules.normalize("move_date", FarmerRules.today().plusDays(1).toString())).isNull();
+    }
+
     @Test
     void 신고서_빈칸은_종류별_필수_칸만_보고_첫_칸을_묻는다() {
         Map<String, Object> birth = new java.util.HashMap<>(Map.of("mother_tag4", "0871", "birth_date", "2026-11-01"));

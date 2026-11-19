@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -24,9 +25,13 @@ import com.mnm.api.domain.report.ReportSummary;
 import com.mnm.api.domain.symptom.SymptomReport;
 import com.mnm.api.domain.task.Task;
 import com.mnm.api.domain.user.User;
+import com.mnm.api.global.ai.AiClient;
+import com.mnm.api.global.ai.AiClient.RouteItem;
+import com.mnm.api.global.ai.AiClient.RouteResult;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +46,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -63,6 +69,8 @@ class FarmerApiTest {
     @Autowired
     JwtEncoder jwtEncoder;
 
+    @MockitoSpyBean
+    AiClient aiClient;
     @MockitoBean
     PlatformTransactionManager transactionManager;
     @MockitoBean
@@ -167,6 +175,24 @@ class FarmerApiTest {
                 .andExpect(jsonPath("$.data.report_notice.report_due").exists())
                 .andExpect(jsonPath("$.data.fallback").value(org.hamcrest.Matchers.nullValue()));
         verify(diaryRepository, never()).save(any());
+    }
+
+    @Test
+    void AI가_뽑은_값이_틀리면_빈칸으로_두고_다시_묻는다() throws Exception {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("mother_tag4", "08712");
+        fields.put("birth_date", FarmerRules.today().plusDays(1).toString());
+        fields.put("sex", "암컷");
+        fields.put("weight", "30");
+        doReturn(new RouteResult("history_report", List.of(new RouteItem("출생", "송아지 낳음", null, null, null)),
+                "birth", fields, List.of())).when(aiClient).route(any());
+
+        farmer(post("/api/farmer/records/text").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"송아지 낳았어\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.report_fields.sex").value("암"))
+                .andExpect(jsonPath("$.data.report_fields.weight").doesNotExist())
+                .andExpect(jsonPath("$.data.missing", contains("mother_tag4", "birth_date", "breed")))
+                .andExpect(jsonPath("$.data.report_notice").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test
