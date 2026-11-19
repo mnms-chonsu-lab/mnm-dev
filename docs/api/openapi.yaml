@@ -815,6 +815,184 @@ paths:
         '200': { description: 농장 정보 }
         '409': { description: CONFLICT-409 }
         '422': { description: VALID-422 }
+  /api/receiver/inbox:
+    get:
+      tags: [접수자 웹]
+      summary: 관할 접수 목록 (RCV-01, R-S02)
+      description: |
+        우리 기관이 받은(또는 전화 경로에서 함께 받은) 도착한 전달만. 최신순 20건.
+        data = { counts{ all, new, checking, done }, outbreak{ fmd, lsd, base_at }, page(PageResponse<item>) }
+        - item = { delivery_id, kind(symptom|history), status(new|checking|done), result, farm_name, address, region_code,
+          cow_tag4, matched_count(소 상태 기록), history_type · history_report_id · due_date(이력 신고서), route, approved_at, received_at }
+        - 처리 기록이 없으면 new. outbreak 는 관할 시군구 최근 30일 발생 건수
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [all, new, checking, done], default: all } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: 접수 목록 }
+        '403': { description: AUTH-403 (접수자 아님 · 소속 기관 없음) }
+        '422': { description: VALID-422 (status 값 오류) }
+  /api/receiver/inbox/{id}:
+    get:
+      tags: [접수자 웹]
+      summary: 한 장 요약 (RCV-02, R-S02)
+      description: |
+        열면 감사 기록(view, delivery)을 남긴다. 관할 밖이면 AUTH-403.
+        data = { delivery_id, kind, status, result, route, approved_at, received_at, farm, symptom, history, basics, diary[], timeline[], guides[] }
+        - farm = { farm_id, farm_no, name, owner_name, address, head_count, phone_shared, phone(공개했을 때만, 아니면 null) }
+        - symptom(소 상태 기록) = { symptom_report_id, cow{ tag4, tag_full, breed, sex, birth_date }, matched_symptoms[], matched_count,
+          found_at, barn, photos[{ media_id, requested_part, predicted_part, match }], card(승인 때 만든 요약 카드, 없으면 null) }
+          사진 원본 주소(서명 URL)는 이미지 저장소 연결 후 추가
+        - history(이력 신고서) = { history_report_id, type, fields, missing[], due_date, d_day, status }
+        - basics = { vaccine, disinfection, visit } 일지에서 분류별 가장 최근 값. diary = 최근 14일 일지
+        - timeline = [{ status, result, memo, at, user_name, org_name }] 상태 변경 · 메모마다 1건
+        - guides = [{ source_doc, revised_at }] 질병 분기에 맞는 게시된 지침 요약 + 질병 구분 없는 법령
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer }, description: deliveries_id }
+      responses:
+        '200': { description: 한 장 요약 }
+        '403': { description: AUTH-403 (관할 밖) }
+        '404': { description: NF-404 }
+  /api/receiver/inbox/{id}/status:
+    patch:
+      tags: [접수자 웹]
+      summary: 처리 상태 변경 (RCV-03, R-S02 · R-P04)
+      description: |
+        new → checking(확인 시작) → done(처리 완료, result 필수), done → checking(다시 열기). 처리 기록(receiver_check)을 1건 추가한다.
+        - expected_status 는 화면에서 보던 상태. 지금 상태와 다르면 CONFLICT-409 (다른 담당자가 먼저 처리함 → 화면은 다시 읽기)
+        - 이력 신고서는 done 으로 바꿀 수 없다 (RCV-10 으로 마침). 바꿀 수 없는 흐름은 VALID-422
+        - 바뀌면 농가 알림(kind=result, ref_id=deliveries_id)을 만든다. 처리 완료면 body = 처리 결과 이름
+        - result 코드는 제안값 (receiver_check.result 표준 목록 확정 전)
+        data = { delivery_id, status, result, at }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, expected_status]
+              properties:
+                status: { type: string, enum: [checking, done] }
+                expected_status: { type: string, enum: [new, checking, done] }
+                result:
+                  type: string
+                  enum: [inspection_request, vet_guide, observe_guide, not_applicable]
+                  description: 방역기관 검사 요청 · 수의사 진료 안내 · 경과 관찰 안내 · 공식 증상 해당 없음
+                memo: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: 바뀐 상태 }
+        '403': { description: AUTH-403 (관할 밖) }
+        '404': { description: NF-404 }
+        '409': { description: CONFLICT-409 (보던 상태가 이미 바뀜) }
+        '422': { description: VALID-422 (결과 없음 · 바꿀 수 없는 흐름) }
+  /api/receiver/inbox/{id}/memos:
+    post:
+      tags: [접수자 웹]
+      summary: 통화 · 처리 메모 (RCV-04, R-P01)
+      description: 처리 이력에 메모 1건 추가. 새로 도착한 기록이면 확인 중으로 바꾸고 농가 알림을 만든다. data = { delivery_id, status, result, at }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memo]
+              properties:
+                memo: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: 메모 저장 }
+        '403': { description: AUTH-403 (관할 밖) }
+        '422': { description: VALID-422 }
+  /api/receiver/inbox/{id}/form6:
+    get:
+      tags: [접수자 웹]
+      summary: 신고서 6개 항목 (RCV-05, R-P02)
+      description: |
+        시행규칙 제13조 항목. 승인 때 만든 form6 을 쓰고, 없으면(요약 실패) 기록값으로 채운다. 질병명 칸은 "발견 당시 상태: …"로만.
+        항목 키는 AI-INT-08 form6 기준이라 소유자 성명과 사육장소가 한 칸이다.
+        data = { delivery_id, items[{ key, label, value }], missing[], text(줄바꿈 구분, 빈칸은 '(빈칸)') }. 열람 감사 기록(view, form6)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: 6개 항목 }
+        '403': { description: AUTH-403 (관할 밖) }
+        '404': { description: NF-404 (없는 전달 · 이력 신고서) }
+  /api/receiver/history-reports/{id}/proxy-done:
+    patch:
+      tags: [접수자 웹]
+      summary: 이력 신고 초안 빈칸 채우기 · 대신 신고 마침 (RCV-10, R-S02B)
+      description: |
+        id 는 history_report_id. fields 는 농가가 비워 둔 칸(missing)과 출생의 calf_tag 만 채울 수 있다 (그 밖의 칸은 VALID-422, 날짜는 YYYY-MM-DD).
+        - done=false: 빈칸만 저장. 새로 도착한 기록이면 확인 중으로
+        - done=true: 빈칸이 없어야 한다(있으면 VALID-422). 신고서 done, 처리 기록 done(result=proxy_reported), 농가 알림 "축협이 대신 신고했어요",
+          일지에 '신고', 폐사·양도 소는 목록에서 빼기, 출생이고 송아지 귀표가 없으면 귀표 30일 할 일(ear_tag_due)
+        - 이미 마친 신고서는 CONFLICT-409. 이력제 시스템과 직접 연동하지 않는다 (항목 복사)
+        data = { delivery_id, history, status, ear_tag_due }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fields: { type: object, additionalProperties: { type: string } }
+                done: { type: boolean, default: false }
+      responses:
+        '200': { description: 신고서 상태 }
+        '403': { description: AUTH-403 (관할 밖) }
+        '404': { description: NF-404 }
+        '409': { description: CONFLICT-409 (이미 마침) }
+        '422': { description: VALID-422 (빈칸 남음 · 채울 수 없는 칸 · 날짜 형식) }
+  /api/receiver/jurisdiction/farms:
+    get:
+      tags: [접수자 웹]
+      summary: 관할 농가 + 지표 (RCV-06, R-S03)
+      description: |
+        관할 = 우리 기관이 담당 축협인 농가 + 농장 시군구가 관할 지역인 농가. 연락 우선순위(계산식 ⑩): 미응답 → 기한 남은 일수 → 두수 적은 순.
+        data = { kpis{ due_soon, unanswered, small_farms, recorded_today }, farms[] }
+        - farm = { farm_id, name, address, region_code, head_count, phone_masked, phone_shared, phone, last_record_date, recorded_today,
+          next_task{ kind, title, due_date, d_day }, alert_state, reasons[unanswered|due_soon|small] }
+        - alert_state: unanswered(48시간 넘게 안 읽음, 제안값) | waiting | seen | null(받은 알림 없음)
+        - phone 은 우리 기관에 보낸 가장 최근 기록에서 연락처를 함께 보낸 경우만 (아니면 null)
+        - 기한 임박 = 미완료 할 일 기한 7일 이내(지난 것 포함), 소규모 = 50두 미만
+      responses:
+        '200': { description: 관할 농가 }
+  /api/receiver/jurisdiction/farms/{id}/nudge:
+    post:
+      tags: [접수자 웹]
+      summary: 농가 알림 재발송 (RCV-07, R-S03)
+      description: 48시간 넘게 안 읽은 가장 최근 알림을 농가 알림함에 한 번 더 넣는다. 감사 기록(nudge, farm). data = { alert_id, created_at }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer }, description: farm_id }
+      responses:
+        '201': { description: 다시 알림 }
+        '403': { description: AUTH-403 (관할 밖) }
+        '404': { description: NF-404 }
+        '409': { description: CONFLICT-409 (미응답 알림 없음) }
+  /api/receiver/guides:
+    get:
+      tags: [접수자 웹]
+      summary: 게시된 지침 요약 (RCV-08, R-S04)
+      description: |
+        어드민에서 게시한 요약(biosecurity_rule kind=summary, published)만 문서별로 묶는다.
+        data = [{ source_doc, disease, revised_at(가장 최근 개정일), items[{ rule_id, text, clause }] }]
+      responses:
+        '200': { description: 지침 목록 }
+  /api/receiver/stats/weekly:
+    get:
+      tags: [접수자 웹]
+      summary: 주간 통계 (RCV-09, R-S05)
+      description: |
+        최근 7일(오늘 포함, 한국 시간). data = { from, to, received, done, with_photo, daily[{ date, count }] 7개 }
+        - done · with_photo 는 이 기간에 도착한 기록 중 현재 처리 완료 · 사진이 있는 소 상태 기록
+      responses:
+        '200': { description: 주간 통계 }
 components:
   responses:
     Login:

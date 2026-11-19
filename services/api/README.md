@@ -98,6 +98,19 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 | 저장하지 않는 것 | 음성 원본(MVP), 알림 생성(기한 D-3·D-1·평소와 다름 스케줄러는 MVP 제외). 처리 결과 알림은 접수자 상태 변경에서 생깁니다 |
 | 전달 | `POST /api/farmer/deliveries`, `POST /api/farmer/history-reports/{id}/submit`(coop)는 `Idempotency-Key` 필수. 전달할 때 일지에 "신고"를 자동으로 남깁니다 |
 
+## 접수자 웹 API (`receiver`)
+
+경로·요청·응답은 `docs/api/openapi.yaml`의 "접수자 웹" 태그와 스웨거(`/docs/receiver`)를 봅니다.
+
+| 항목 | 내용 |
+| --- | --- |
+| 수신함 | 우리 기관이 받은 기관(`deliveries.org_id`)이거나 함께 받은 축협(`cc_org_id`)이고 `status=delivered`인 전달만. 다른 기관 것은 `AUTH-403` |
+| 처리 상태 | `receiver_check`에 상태 변경·메모마다 행을 추가하고 가장 최근 행이 현재 상태(없으면 `new`). 같은 전달은 행 잠금(`findForUpdate`)으로 동시에 고치지 않고, 보던 상태가 바뀌었으면 `CONFLICT-409` |
+| 농가 알림 | 상태 변경(RCV-03·04)과 대신 신고 마침(RCV-10)에서 `alerts`(kind=`result`, ref_id=`deliveries_id`)를 만듭니다. 다시 알리기(RCV-07)는 48시간 넘게 안 읽은 알림을 한 번 더 넣습니다 |
+| 감사 기록 | 한 장 요약·6개 항목 열람(`view`), 상태·메모·신고서 변경(`update`), 다시 알리기(`nudge`)를 `audit_log`에 남깁니다 |
+| 규칙 | `receiver/ReceiverRules`: 상태 흐름, 처리 결과 코드(제안값), 미응답 48시간(제안값), 연락 우선순위(미응답 → 기한 → 두수), 6개 항목 복사 텍스트 |
+| 하지 않는 것 | 사진·영상 원본 주소(이미지 저장소 연결 전), 영상 행동 비율, 연락처 "변경" 배지(바뀐 시각 컬럼 없음), 이력제 직접 연동 |
+
 ## DB 마이그레이션 (Flyway)
 
 - 서버가 시작할 때 Flyway 가 `src/main/resources/db/migration`(스키마)과 `db/seed`(시연용 계정)를 적용한 뒤, Hibernate 가 엔티티와 테이블을 검사합니다.
