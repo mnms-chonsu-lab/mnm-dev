@@ -19,7 +19,6 @@ import com.mnm.api.global.error.BusinessException;
 import com.mnm.api.global.error.ErrorCode;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -49,7 +48,6 @@ class HistoryReportService {
             "폐사", List.of("cow_tag", "death_date"),
             "이동", List.of("cow_tag", "move_date", "counterpart_farm_no", "counterpart_name"));
     private static final Set<String> TAG_FIELDS = Set.of("mother_tag4", "cow_tag");
-    private static final Set<String> DATE_FIELDS = Set.of("birth_date", "death_date", "move_date");
 
     private final FarmerSupport support;
     private final FarmerHistoryReportRepository reportRepository;
@@ -61,7 +59,7 @@ class HistoryReportService {
 
     /** 초안 만들기. 일지 저장(FARM-04)·소 목록에서 빼기(FARM-24)가 같은 트랜잭션 안에서 부른다 */
     HistoryReport createDraft(FarmInfo farm, String type, Map<String, Object> fields) {
-        Map<String, Object> merged = merge(farm, type, new LinkedHashMap<>(), fields == null ? Map.of() : fields);
+        Map<String, Object> merged = merge(farm, type, new LinkedHashMap<>(), fields == null ? Map.of() : fields, true);
         List<String> missing = FarmerRules.missing(type, merged);
         LocalDate due = due(type, merged);
         HistoryReport report = reportRepository.save(
@@ -94,7 +92,7 @@ class HistoryReportService {
             }
             type = request.type();
         }
-        Map<String, Object> merged = merge(farm, type, support.readMap(report.getFields()), request.fields());
+        Map<String, Object> merged = merge(farm, type, support.readMap(report.getFields()), request.fields(), true);
         List<String> missing = FarmerRules.missing(type, merged);
         LocalDate due = due(type, merged);
         if (!type.equals(report.getType())) {
@@ -224,36 +222,40 @@ class HistoryReportService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "신고서 없음"));
     }
 
-    /** 바뀐 칸을 검사해 합친다. 알 수 없는 칸·형식이 틀린 값은 VALID-422 */
-    private Map<String, Object> merge(FarmInfo farm, String type, Map<String, Object> base, Map<String, Object> changes) {
+    /** FARM-03 미리보기: AI 가 뽑은 칸 정리. 틀린 값·목록에 없는 소는 빈칸으로 두고 F-S04Q 에서 다시 묻는다 (mnm-ai 와 같음) */
+    Map<String, Object> cleanAiFields(FarmInfo farm, String type, Map<String, Object> fields) {
+        return merge(farm, type, new LinkedHashMap<>(), fields, false);
+    }
+
+    /**
+     * 바뀐 칸을 정리해 합친다. strict 면 알 수 없는 칸·형식이 틀린 값은 VALID-422 (앱이 보낸 값),
+     * 아니면 알 수 없는 칸은 버리고 틀린 값은 빈칸으로 둔다 (AI 가 뽑은 값)
+     */
+    private Map<String, Object> merge(FarmInfo farm, String type, Map<String, Object> base, Map<String, Object> changes,
+            boolean strict) {
         List<String> allowed = ALLOWED_FIELDS.get(isMove(type) ? "이동" : type);
+        boolean bought = "양수".equals(type);
         Map<String, Cow> cows = null;
         for (Map.Entry<String, Object> e : changes.entrySet()) {
             String key = e.getKey();
             if (!allowed.contains(key)) {
-                throw invalid("입력한 내용을 다시 확인해 주세요.", "알 수 없는 칸: " + key);
-            }
-            String value = str(e.getValue());
-            if (value == null) {
-                base.put(key, null);
+                if (strict) {
+                    throw invalid("입력한 내용을 다시 확인해 주세요.", "알 수 없는 칸: " + key);
+                }
                 continue;
             }
-            if (TAG_FIELDS.contains(key)) {
+            String value = str(e.getValue());
+            String clean = value == null ? null : FarmerRules.normalize(key, value);
+            if (clean != null && TAG_FIELDS.contains(key) && !bought) {
                 if (cows == null) {
                     cows = cowsByTag4(farm.getId());
                 }
-                base.put(key, tag(value, cows, "양수".equals(type)));
-            } else if (DATE_FIELDS.contains(key)) {
-                base.put(key, date(value).toString());
-            } else if ("sex".equals(key)) {
-                base.put(key, check(value, "암|수", "성별을 골라 주세요."));
-            } else if ("calf_tag".equals(key)) {
-                base.put(key, check(value.replaceAll("\\s|-", ""), "\\d{12}", "귀표 12자리를 넣어 주세요."));
-            } else if ("counterpart_farm_no".equals(key)) {
-                base.put(key, check(value, "\\d{6}", "농장식별번호 6자리를 넣어 주세요."));
-            } else {
-                base.put(key, value.length() > 50 ? value.substring(0, 50) : value);
+                clean = myTag4(clean, cows);
             }
+            if (strict && value != null && clean == null) {
+                throw invalid(invalidMessage(key, bought), "형식 오류: " + key);
+            }
+            base.put(key, clean);
         }
         // 송아지 품종을 따로 말하지 않았으면 어미 소의 이력제 품종으로 채운다
         if ("출생".equals(type) && str(base.get("breed")) == null && str(base.get("mother_tag4")) != null) {
@@ -265,36 +267,20 @@ class HistoryReportService {
         return base;
     }
 
-    /** 소 칸은 내 소 목록(뺀 소 포함)의 끝 4자리로 저장한다. 양수는 아직 목록에 없으므로 4자리·12자리 그대로 */
-    private static String tag(String value, Map<String, Cow> cows, boolean bought) {
-        String digits = value.replaceAll("\\s|-", "");
-        if (bought) {
-            return check(digits, "\\d{4}|\\d{12}", "귀표 번호를 다시 확인해 주세요.");
-        }
-        String tag4 = digits.length() == 12 ? digits.substring(8) : digits;
-        if (!tag4.matches("\\d{4}") || !cows.containsKey(tag4)) {
-            throw invalid("목록에 없는 번호예요. 번호를 다시 확인해 주세요.", "소 목록에 없는 귀표");
-        }
-        return tag4;
+    /** 소 칸은 내 소 목록(뺀 소 포함)의 끝 4자리로 저장한다. 목록에 없으면 null. 양수는 아직 목록에 없으므로 부르지 않는다 */
+    private static String myTag4(String tag, Map<String, Cow> cows) {
+        String tag4 = tag.length() == 12 ? tag.substring(8) : tag;
+        return cows.containsKey(tag4) ? tag4 : null;
     }
 
-    private static LocalDate date(String value) {
-        try {
-            LocalDate date = LocalDate.parse(value);
-            if (date.isAfter(FarmerRules.today())) {
-                throw invalid("날짜를 다시 확인해 주세요.", "미래 날짜");
-            }
-            return date;
-        } catch (DateTimeParseException e) {
-            throw invalid("날짜를 다시 확인해 주세요.", "날짜 형식 오류");
-        }
-    }
-
-    private static String check(String value, String regex, String message) {
-        if (!value.matches(regex)) {
-            throw invalid(message, "형식 오류");
-        }
-        return value;
+    private static String invalidMessage(String key, boolean bought) {
+        return switch (key) {
+            case "mother_tag4", "cow_tag" -> bought ? "귀표 번호를 다시 확인해 주세요." : "목록에 없는 번호예요. 번호를 다시 확인해 주세요.";
+            case "sex" -> "성별을 골라 주세요.";
+            case "calf_tag" -> "귀표 12자리를 넣어 주세요.";
+            case "counterpart_farm_no" -> "농장식별번호 6자리를 넣어 주세요.";
+            default -> "날짜를 다시 확인해 주세요.";
+        };
     }
 
     private static BusinessException invalid(String message, String detail) {

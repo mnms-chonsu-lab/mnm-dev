@@ -110,12 +110,10 @@ class DiaryService {
         if (route.reportType() == null) {
             return new RecordDraft(text, route.intent(), items, null, Map.of(), route.missing(), null, null);
         }
-        Map<String, Object> fields = new LinkedHashMap<>(route.reportFields());
-        String type = FarmerRules.reportType(route.reportType(), fields.remove("move_type"));
-        Cow mother = "출생".equals(type) ? cows.get(HistoryReportService.str(fields.get("mother_tag4"))) : null;
-        if (mother != null && mother.getBreed() != null) {
-            fields.putIfAbsent("breed", mother.getBreed()); // 송아지 품종 = 어미 소의 이력제 품종
-        }
+        Map<String, Object> raw = new LinkedHashMap<>(route.reportFields());
+        String type = FarmerRules.reportType(route.reportType(), raw.remove("move_type"));
+        // 틀린 값은 빈칸으로 (저장 때 VALID-422 로 멈추지 않게). 송아지 품종은 어미 소 품종으로 채워진다
+        Map<String, Object> fields = historyReportService.cleanAiFields(farm, type, raw);
         List<String> missing = FarmerRules.missing(type, fields);
         return new RecordDraft(text, route.intent(), items, type, fields, missing, notice(type, fields), null);
     }

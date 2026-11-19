@@ -3,6 +3,7 @@ package com.mnm.api.farmer;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -120,6 +121,40 @@ final class FarmerRules {
             }
         }
         return missing;
+    }
+
+    /** 성별 말 → 암·수 (mnm-ai report_state.py _SEX 와 같은 값) */
+    private static final Map<String, String> SEX = Map.of(
+            "암", "암", "암컷", "암", "암소", "암", "수", "수", "수컷", "수", "수소", "수");
+
+    /**
+     * 신고서 칸 값 정리. 형식이 틀리면 null. mnm-ai report_state.py(_tag4 · _date · _sex)와 같은 기준이고,
+     * 소 귀표는 12자리도 받는다 (끝 4자리 · 내 소 목록 확인은 HistoryReportService).
+     */
+    static String normalize(String key, String value) {
+        String v = value.trim();
+        return switch (key) {
+            case "mother_tag4", "cow_tag" -> match(v.replaceAll("\\s|-", ""), "\\d{4}|\\d{12}");
+            case "calf_tag" -> match(v.replaceAll("\\s|-", ""), "\\d{12}");
+            case "counterpart_farm_no" -> match(v, "\\d{6}");
+            case "birth_date", "death_date", "move_date" -> pastDate(v);
+            case "sex" -> SEX.get(v);
+            default -> v.length() > 50 ? v.substring(0, 50) : v;
+        };
+    }
+
+    private static String match(String value, String regex) {
+        return value.matches(regex) ? value : null;
+    }
+
+    /** 미래 날짜는 틀린 값. 시각이 붙어 오면 날짜만 쓴다 */
+    private static String pastDate(String value) {
+        try {
+            LocalDate date = LocalDate.parse(value.length() > 10 ? value.substring(0, 10) : value);
+            return date.isAfter(today()) ? null : date.toString();
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     /** 빈칸마다 한 문장 질문 (해요체). 다음 질문은 빈칸 목록의 첫 칸 */
