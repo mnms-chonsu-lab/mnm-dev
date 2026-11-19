@@ -67,6 +67,9 @@ jobs:
             docker compose up -d
             docker logout ghcr.io
             docker image prune -f
+            # nginx 설정(infra/docker/nginx)이 바뀌어도 컨테이너는 그대로라 다시 읽힌다.
+            # 문법 오류면 바꾸지 않고(지금 설정 유지) 배포 실패로 표시. 로그아웃 뒤에 둬서 실패해도 토큰이 남지 않게 한다
+            docker compose exec -T nginx sh /etc/nginx/mnm/reload.sh
           "
 
       - name: 배포 확인
