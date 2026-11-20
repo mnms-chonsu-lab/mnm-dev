@@ -80,7 +80,7 @@ cp .env.example .env      # 키 값 채우기
 | `SPRING_FLYWAY_USER` · `SPRING_FLYWAY_PASSWORD` | `services/api` | Flyway(테이블 생성·변경)만 쓰는 DB 계정. 앱 계정을 읽기·쓰기 전용으로 나눴을 때 owner 계정을 넣음 | `DATABASE_USERNAME`·`DATABASE_PASSWORD` 사용 |
 | `FLYWAY_LOCATIONS` | `services/api` | 마이그레이션 위치 | 스키마 + 시연용 계정 시드 (`classpath:db/migration,classpath:db/seed`) |
 | `FLYWAY_BASELINE_VERSION` | `services/api` | Flyway 도입 전에 psql 로 스키마를 넣은 DB 를 이 버전까지 적용된 것으로 기록 | `3` (빈 DB 에는 영향 없음) |
-| `CORS_ALLOWED_ORIGINS` | `services/api` | 다른 도메인에서 API를 부를 프론트 주소 (쉼표 구분) | CORS 꺼짐 (같은 도메인 호출만 가능) |
+| `CORS_ALLOWED_ORIGINS` | `services/api` | 다른 도메인에서 API를 부를 프론트 주소 (쉼표 구분). 스테이징은 비우면 `compose.deploy.yml` 기본값(Vercel 프론트 3개 + `localhost:5173~5175`) | CORS 꺼짐 (같은 도메인 호출만 가능) |
 | `POSTGRES_PASSWORD` | 로컬 `docker-compose.yml` | 로컬 postgres 비밀번호 | 기본값 `mnm` |
 | `DOMAIN` | 배포 서버 | nginx HTTPS 인증서 도메인 | HTTPS 인증서 발급 불가 |
 | `IMAGE_TAG` | 배포 서버 | 띄울 `mnm-api` 이미지 태그 (보통 `deploy.yml`이 지정) | `develop` 태그 사용 |
