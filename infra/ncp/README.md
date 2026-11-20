@@ -55,7 +55,7 @@ free -h   # Swap 2.0Gi 확인
 | 엔드포인트 | `https://kr.object.ncloudstorage.com` · 리전 `kr-standard` |
 | 공개 여부 | 비공개 (서명 없는 주소는 403) |
 | 접근 방식 | 서버: 접근 키 / AI 서버·앱: 서명 URL (`s3v4`) |
-| CORS | 설정 없음 — 브라우저 직접 업로드가 필요하면 추가 (#24) |
+| CORS | `https://chonsu-farmer.vercel.app`, `http://localhost:5173` · `POST`·`GET` · `Content-Type` (#24) |
 | 키 | ETL(mnms-chonsu-lab/mnm-data#1)과 같은 키. 서비스용 분리 (제안) |
 
 11/20 점검 (#24, 스테이징 서버에서 실행):
@@ -66,6 +66,10 @@ free -h   # Swap 2.0Gi 확인
 | 서명 없는 주소 | 403 (비공개) |
 | 서명 URL 다운로드 · 업로드 | 200 |
 | 9MB 서명 URL 다운로드 (무작위 9MB 파일, 서버 → 버킷, 3회) | 0.06~0.10초 |
+| 서명 URL 만료 (10초 URL → 15초 뒤) | 403 |
+| 업로드 10MB 제한 (POST `content-length-range`) | 11MB 거절 (`EntityTooLarge`) |
+| CORS 사전 요청 (목록 밖 주소) | 403 |
 
 - 최신 `boto3`는 `request_checksum_calculation="when_required"`를 주지 않으면 업로드가 `AccessDenied`로 실패합니다 (mnms-chonsu-lab/mnm-data#1).
+- CORS 설정(`put_bucket_cors`)은 `Content-MD5` 헤더가 필요합니다. `boto3`는 `before-sign` 이벤트로 직접 붙여야 합니다.
 - 키 값은 여기에 적지 않습니다. 서버 `.env`와 GitHub Secrets에만 둡니다.
