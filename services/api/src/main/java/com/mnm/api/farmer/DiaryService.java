@@ -33,7 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -91,12 +90,15 @@ class DiaryService {
     }
 
     private RecordDraft draft(FarmInfo farm, String text) {
-        Map<String, Cow> cows = cowRepository.findByFarmIdAndStatus(farm.getId(), "active").stream()
+        // 같은 끝 4자리 소도 모두 보낸다 (라우터가 겹침을 알아야 다시 묻는다)
+        List<Cow> cows = cowRepository.findByFarmIdAndStatus(farm.getId(), "active").stream()
                 .filter(c -> c.getTagLast4() != null)
-                .collect(Collectors.toMap(Cow::getTagLast4, Function.identity(), (a, b) -> a));
+                .toList();
         RouteResult route;
         try {
-            List<RouteCow> context = cows.values().stream().map(c -> new RouteCow(c.getTagLast4(), null, c.getBarn())).toList();
+            List<RouteCow> context = cows.stream()
+                    .map(c -> new RouteCow(c.getTagLast4(), null, c.getBarn(), c.getTagFull()))
+                    .toList();
             route = aiClient.route(new RouteRequest(text, FarmerRules.today(), context));
         } catch (AiException e) {
             log.warn("기록 정리 실패, 선택형 입력으로 안내: {}", e.getMessage());
@@ -104,7 +106,8 @@ class DiaryService {
         }
         List<DraftItem> items = route.items().stream()
                 .map(i -> new DraftItem(i.category(), i.value(), i.cowTag4(),
-                        Optional.ofNullable(i.cowTag4()).map(cows::get).map(Cow::getId).orElse(null),
+                        Optional.ofNullable(HistoryReportService.cowOf(cows, i.cowTag() != null ? i.cowTag() : i.cowTag4()))
+                                .map(Cow::getId).orElse(null),
                         i.vaccineType(), i.headCount()))
                 .toList();
         if (route.reportType() == null) {

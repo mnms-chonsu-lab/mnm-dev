@@ -27,7 +27,8 @@ public interface AiClient {
     record RouteRequest(String text, LocalDate today, List<RouteCow> cows) {
     }
 
-    record RouteCow(String tag4, String desc, String barn) {
+    /** tag: 귀표 12자리 (없으면 null). 끝 4자리가 겹치는 소를 12자리로 확정할 때 쓴다 */
+    record RouteCow(String tag4, String desc, String barn, String tag) {
     }
 
     /**
@@ -39,8 +40,12 @@ public interface AiClient {
             List<String> missing) {
     }
 
-    /** category: 사육현황 | 접종 | 소독 | 관찰 | 출입 | 출생 | 폐사 | 이동 | 메모. cowTag4 는 소 목록에 없으면 null */
-    record RouteItem(String category, String value, String cowTag4, String vaccineType, Integer headCount) {
+    /**
+     * category: 사육현황 | 접종 | 소독 | 관찰 | 출입 | 출생 | 폐사 | 이동 | 메모. cowTag4 는 소 목록에 없거나
+     * 같은 끝 4자리 소가 여럿이면 null. cowTag 는 한 마리로 확정됐을 때만 귀표 12자리
+     */
+    record RouteItem(String category, String value, String cowTag4, String cowTag, String vaccineType,
+            Integer headCount) {
     }
 
     /**

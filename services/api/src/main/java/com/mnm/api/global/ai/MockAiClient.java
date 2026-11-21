@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -27,7 +26,8 @@ public class MockAiClient implements AiClient {
     /** 기능명세서 시연 시나리오 S1 발화 */
     static final String DEMO_STT_TEXT = "어젯밤에 0871번이 송아지 낳았어. 암컷이야.";
 
-    private static final Pattern TAG4 = Pattern.compile("(?<!\\d)(\\d{4})(?!\\d)");
+    /** 귀표 12자리 또는 끝 4자리 */
+    private static final Pattern TAG = Pattern.compile("(?<!\\d)(\\d{12}|\\d{4})(?!\\d)");
     private static final Pattern HEADS = Pattern.compile("(\\d+)\\s*(두|마리)");
     private static final Pattern FARM_NO = Pattern.compile("(?<!\\d)(\\d{6})(?!\\d)");
 
@@ -77,7 +77,6 @@ public class MockAiClient implements AiClient {
 
     @Override
     public RouteResult route(RouteRequest request) {
-        Set<String> known = request.cows().stream().map(RouteCow::tag4).collect(Collectors.toSet());
         List<RouteItem> items = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         for (String sentence : request.text().split("[.!?\\n]+")) {
@@ -86,21 +85,27 @@ public class MockAiClient implements AiClient {
                 continue;
             }
             String category = classify(s);
-            String tag4 = find(TAG4, s);
-            if (category == null && tag4 == null && !items.isEmpty()) {
+            String spoken = find(TAG, s);
+            if (category == null && spoken == null && !items.isEmpty()) {
                 // "암컷이야" 처럼 앞 문장을 이어 말한 것은 앞 항목에 붙인다
                 RouteItem last = items.removeLast();
-                items.add(new RouteItem(last.category(), last.value() + ". " + s, last.cowTag4(), last.vaccineType(),
+                items.add(new RouteItem(last.category(), last.value() + ". " + s, last.cowTag4(), last.cowTag(),
+                        last.vaccineType(),
                         last.headCount()));
                 continue;
             }
-            String cowTag4 = tag4 != null && known.contains(tag4) ? tag4 : null;
-            if (tag4 != null && cowTag4 == null && !missing.contains("cow")) {
+            // 같은 끝 4자리 소가 여럿이면 확정하지 않고 다시 묻는다. 12자리는 그 소로 확정
+            List<RouteCow> match = spoken == null ? List.of() : request.cows().stream()
+                    .filter(c -> spoken.equals(spoken.length() == 12 ? c.tag() : c.tag4()))
+                    .toList();
+            RouteCow cow = match.size() == 1 ? match.getFirst() : null;
+            String cowTag4 = cow == null ? null : cow.tag4();
+            if (spoken != null && cow == null && !missing.contains("cow")) {
                 missing.add("cow");
             }
             String vaccine = "접종".equals(category) ? vaccine(s) : null;
             String heads = find(HEADS, s);
-            items.add(new RouteItem(category == null ? "메모" : category, s, cowTag4, vaccine,
+            items.add(new RouteItem(category == null ? "메모" : category, s, cowTag4, cow == null ? null : cow.tag(), vaccine,
                     heads == null ? null : Integer.valueOf(heads)));
         }
         RouteItem reportItem = items.stream().filter(i -> REPORT_TYPE.containsKey(i.category())).findFirst().orElse(null);
@@ -112,17 +117,17 @@ public class MockAiClient implements AiClient {
         Map<String, Object> fields = new LinkedHashMap<>();
         switch (type) {
             case "birth" -> {
-                fields.put("mother_tag4", reportItem.cowTag4());
+                fields.put("mother_tag4", tagOf(reportItem));
                 fields.put("birth_date", date);
                 fields.put("sex", sex(request.text()));
             }
             case "death" -> {
-                fields.put("cow_tag", reportItem.cowTag4());
+                fields.put("cow_tag", tagOf(reportItem));
                 fields.put("death_date", date);
             }
             default -> {
                 fields.put("move_type", moveType(request.text()));
-                fields.put("cow_tag", reportItem.cowTag4());
+                fields.put("cow_tag", tagOf(reportItem));
                 fields.put("move_date", date);
                 fields.put("counterpart_farm_no", find(FARM_NO, request.text()));
                 fields.put("counterpart_name", null);
@@ -252,6 +257,11 @@ public class MockAiClient implements AiClient {
             return "구제역";
         }
         return sentence.contains("럼피스킨") ? "럼피스킨" : null;
+    }
+
+    /** 신고서 소 칸: 소가 정해졌으면 말한 번호 그대로 (4자리 또는 12자리). 서버가 겹침을 가린다 */
+    private static String tagOf(RouteItem item) {
+        return item.cowTag4() == null ? null : find(TAG, item.value());
     }
 
     private static String find(Pattern pattern, String text) {
