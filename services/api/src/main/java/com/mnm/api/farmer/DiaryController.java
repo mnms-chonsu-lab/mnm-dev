@@ -39,7 +39,7 @@ class DiaryController {
     private final DiaryService diaryService;
 
     @Operation(summary = "음성 기록 → 정리 초안 (FARM-03)",
-            description = "multipart audio (webm·m4a, 60초 이하). 저장하지 않는다. 음성 인식이 안 되면 fallback=text_input")
+            description = "multipart audio (webm·m4a, 60초 이하). 일지는 저장하지 않고 음성 원본만 저장해 audio_media_id 로 준다. 음성 인식이 안 되면 fallback=text_input")
     @PostMapping(value = "/records/voice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     BaseResponse<RecordDraft> voice(@AuthenticationPrincipal Jwt jwt, @RequestPart("audio") MultipartFile audio) {
         return BaseResponse.of(diaryService.draftFromVoice(FarmerSupport.userId(jwt), audio));

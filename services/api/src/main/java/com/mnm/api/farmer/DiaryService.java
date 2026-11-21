@@ -5,6 +5,7 @@ import com.mnm.api.domain.diary.DiaryEntry;
 import com.mnm.api.domain.farm.Cow;
 import com.mnm.api.domain.farm.FarmInfo;
 import com.mnm.api.domain.report.HistoryReport;
+import com.mnm.api.domain.symptom.FieldMedia;
 import com.mnm.api.farmer.DiaryDtos.DiaryDay;
 import com.mnm.api.farmer.DiaryDtos.DiaryEntryDetail;
 import com.mnm.api.farmer.DiaryDtos.DiaryEntryResponse;
@@ -60,10 +61,11 @@ class DiaryService {
     private final FarmerDeliveryRepository deliveryRepository;
     private final FarmerReceiverCheckRepository receiverCheckRepository;
     private final HistoryReportService historyReportService;
+    private final MediaService mediaService;
 
     /**
-     * FARM-03. 음성 → 문장 → 정리 초안. 저장하지 않는다. 음성 원본도 저장하지 않는다 (MVP).
-     * AI 호출 동안 DB 트랜잭션을 잡지 않으려고 @Transactional 을 붙이지 않는다.
+     * FARM-03. 음성 → 문장 → 정리 초안. 일지는 저장하지 않는다. 음성 원본은 저장소에 먼저 올리고 audio_media_id 를 돌려준다
+     * (FARM-04 저장 때 연결). AI 호출 동안 DB 트랜잭션을 잡지 않으려고 @Transactional 을 붙이지 않는다.
      */
     RecordDraft draftFromVoice(Long userId, MultipartFile audio) {
         if (audio == null || audio.isEmpty()) {
@@ -75,14 +77,23 @@ class DiaryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "음성 파일만 올릴 수 있어요.", "음성 형식 아님");
         }
         FarmInfo farm = support.farm(userId);
+        RecordDraft textInput = new RecordDraft(null, null, List.of(), null, Map.of(), List.of(), null, "text_input");
+        byte[] bytes;
+        try {
+            bytes = audio.getBytes();
+        } catch (IOException e) {
+            log.warn("음성 파일 읽기 실패, 글로 쓰기로 안내: {}", e.getMessage());
+            return textInput;
+        }
+        Long audioMediaId = mediaService.storeAudio(farm, bytes, contentType);
         String text;
         try {
-            text = aiClient.stt(audio.getBytes(), contentType).text();
-        } catch (AiException | IOException e) {
+            text = aiClient.stt(bytes, contentType).text();
+        } catch (AiException e) {
             log.warn("음성 인식 실패, 글로 쓰기로 안내: {}", e.getMessage());
-            return new RecordDraft(null, null, List.of(), null, Map.of(), List.of(), null, "text_input");
+            return textInput.withAudio(audioMediaId);
         }
-        return draft(farm, text);
+        return draft(farm, text).withAudio(audioMediaId);
     }
 
     /** FARM-25. 글 → 정리 초안 (음성 인식만 건너뜀) */
@@ -142,10 +153,12 @@ class DiaryService {
     DiarySaveResponse save(Long userId, DiarySaveRequest request) {
         FarmInfo farm = support.farm(userId);
         LocalDate date = request.date() == null ? FarmerRules.today() : notFuture(request.date());
+        FieldMedia audio = request.audioMediaId() == null ? null : mediaService.ownAudio(farm, request.audioMediaId());
         List<Long> ids = new ArrayList<>();
         for (DiaryItemRequest item : request.items()) {
             DiaryEntry entry = DiaryEntry.record(farm, date, item.category(), cow(farm, item.cowId()), item.value(),
                     item.vaccineType(), item.headCount(), request.rawText());
+            entry.attachAudio(audio);
             ids.add(diaryRepository.save(entry).getId());
         }
         if (request.report() == null) {
@@ -185,7 +198,7 @@ class DiaryService {
         List<SentTo> sent = deliveryRepository.findSymptomDeliveries(farm.getId(), from, to).stream()
                 .map(this::sentTo)
                 .toList();
-        return new DiaryEntryDetail(toResponse(entry), entry.getRawText(), sent);
+        return new DiaryEntryDetail(toResponse(entry), entry.getRawText(), mediaService.viewUrl(entry.getAudioMedia()), sent);
     }
 
     /** FARM-26 고치기. 서버가 자동으로 남긴 "신고" 기록은 고치지 않는다 */

@@ -69,7 +69,8 @@ final class SymptomDtos {
      */
     record SymptomSummaryResponse(Long symptomReportId, SummaryCow cow, int matchedCount, List<String> matched,
             String observedText, Integer headCount, LocalDate foundDate, String barn,
-            List<DiaryEntryResponse> relatedDiary, LatestVaccine vaccine, List<PhotoResult> photos, String disease,
+            List<DiaryEntryResponse> relatedDiary, LatestVaccine vaccine, List<PhotoResult> photos, VideoResult video,
+            String disease,
             boolean delivered, Map<String, Object> form6, String form6Text) {
     }
 
@@ -80,8 +81,12 @@ final class SymptomDtos {
     record LatestVaccine(LocalDate date, String value) {
     }
 
-    /** match: 부위 확인 결과 (null = 아직 확인 중이거나 확인 안 됨) */
-    record PhotoResult(Long mediaId, String part, Boolean match) {
+    /** match: 부위 확인 결과 (null = 아직 확인 중이거나 확인 안 됨). url: 원본 서명 URL (만료 10분) */
+    record PhotoResult(Long mediaId, String part, Boolean match, String url) {
+    }
+
+    /** 행동 영상 (F-S10V). ratio: stand · lie · eat (%, 참고). null = 분류 중이거나 분류 안 됨 */
+    record VideoResult(Long mediaId, String url, Map<String, Integer> ratio) {
     }
 
     /** FARM-16 질병별 지금 할 일 (게시된 조치 문구 원문, 순서대로 최대 3개) */

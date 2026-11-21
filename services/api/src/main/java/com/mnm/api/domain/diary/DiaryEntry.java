@@ -62,7 +62,7 @@ public class DiaryEntry {
     @JoinColumn(name = "audio_media_id")
     private FieldMedia audioMedia;
 
-    /** 확인된 일지 항목 저장 (FARM-04). 음성 원본은 MVP에서 저장하지 않는다 */
+    /** 확인된 일지 항목 저장 (FARM-04). 음성 원본은 {@link #attachAudio} 로 붙인다 */
     public static DiaryEntry record(FarmInfo farm, LocalDate date, String category, Cow cow, String value,
             String vaccineType, Integer headCount, String rawText) {
         DiaryEntry entry = new DiaryEntry();
@@ -81,5 +81,10 @@ public class DiaryEntry {
         this.value = value;
         this.vaccineType = vaccineType;
         this.headCount = headCount;
+    }
+
+    /** 말로 기록한 음성 원본 (FARM-03 에서 저장한 field_media). null 이면 없음 */
+    public void attachAudio(FieldMedia audio) {
+        this.audioMedia = audio;
     }
 }

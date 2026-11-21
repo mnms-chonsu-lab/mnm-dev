@@ -68,7 +68,7 @@ cp .env.example .env      # 키 값 채우기
 ## 환경변수
 
 값은 `.env.example`을 복사해 `.env`에 채웁니다. 실제 키는 커밋하지 않습니다.
-지금 코드·설정이 읽는 키만 적었습니다. AI 연동·파일 저장소 키는 해당 기능을 붙이는 PR에서 추가합니다.
+지금 코드·설정이 읽는 키만 적었습니다. AI 연동 키는 해당 기능을 붙이는 PR에서 추가합니다.
 
 | 변수 | 위치 | 용도 | 없으면 |
 | --- | --- | --- | --- |
@@ -81,6 +81,9 @@ cp .env.example .env      # 키 값 채우기
 | `FLYWAY_LOCATIONS` | `services/api` | 마이그레이션 위치 | 스키마 + 시연용 계정 시드 (`classpath:db/migration,classpath:db/seed`) |
 | `FLYWAY_BASELINE_VERSION` | `services/api` | Flyway 도입 전에 psql 로 스키마를 넣은 DB 를 이 버전까지 적용된 것으로 기록 | `3` (빈 DB 에는 영향 없음) |
 | `CORS_ALLOWED_ORIGINS` | `services/api` | 다른 도메인에서 API를 부를 프론트 주소 (쉼표 구분). 스테이징은 비우면 `compose.deploy.yml` 기본값(Vercel 프론트 3개 + `localhost:5173~5175`) | CORS 꺼짐 (같은 도메인 호출만 가능) |
+| `STORAGE_ENDPOINT` | `services/api` | 사진·영상·음성 원본 저장소(S3 호환) 주소. 스테이징은 `https://kr.object.ncloudstorage.com` (`infra/ncp/README.md`) | 가짜 저장소 (파일이 실제로 저장되지 않고 주소도 열리지 않음). 로컬에서는 스테이징 버킷을 쓰지 않음 |
+| `STORAGE_REGION` | `services/api` | 저장소 리전 | `kr-standard` |
+| `STORAGE_BUCKET` · `STORAGE_ACCESS_KEY` · `STORAGE_SECRET_KEY` | `services/api` | 버킷 이름 · 접근 키 (서버 `~/mnm/.env`에만) | `STORAGE_ENDPOINT`가 있는데 비어 있으면 API가 뜨지 않음 |
 | `POSTGRES_PASSWORD` | 로컬 `docker-compose.yml` | 로컬 postgres 비밀번호 | 기본값 `mnm` |
 | `DOMAIN` | 배포 서버 | nginx HTTPS 인증서 도메인 | HTTPS 인증서 발급 불가 |
 | `IMAGE_TAG` | 배포 서버 | 띄울 `mnm-api` 이미지 태그 (보통 `deploy.yml`이 지정) | `develop` 태그 사용 |

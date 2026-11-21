@@ -68,4 +68,27 @@ public interface AiClient {
     record SummaryResult(Map<String, Object> card, Map<String, Object> form6, List<String> missing,
             String form6Text) {
     }
+
+    /** AI-INT-03 /ai/part-check: 사진 주소(서명 URL) + 요청 부위(mouth | udder | hoof | flank) → 일치 여부·화질 */
+    PartCheckResult partCheck(String imageUrl, String requestedPart);
+
+    /** AI-INT-04 /ai/behavior: 영상 주소(서명 URL) → 프레임별 서기·눕기·먹기 */
+    BehaviorResult behavior(String videoUrl);
+
+    /** predictedPart 는 로그·어드민용 (농가 화면에 내보내지 않는다) */
+    record PartCheckResult(String requestedPart, String predictedPart, boolean match, double score, Quality quality,
+            String modelVersion, boolean fallback) {
+    }
+
+    /** brightness: 평균 밝기 0~255 */
+    record Quality(boolean dark, boolean blurry, double brightness) {
+    }
+
+    /** frames: 검출된 소 1마리(박스 1개)당 1줄. mainLabel 은 검출이 없으면 null */
+    record BehaviorResult(List<BehaviorFrame> frames, String mainLabel, String modelVersion) {
+    }
+
+    /** t: 영상 안 시각(초). label: stand | lie | eat */
+    record BehaviorFrame(double t, String label, double confidence) {
+    }
 }

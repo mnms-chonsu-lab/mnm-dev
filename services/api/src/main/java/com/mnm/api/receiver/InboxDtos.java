@@ -46,16 +46,20 @@ final class InboxDtos {
             boolean phoneShared, String phone) {
     }
 
-    /** card 는 승인 때 만든 요약 카드 원본 (만들지 못했으면 null). 사진 원본 주소는 저장소 연결 후 추가 */
+    /** card 는 승인 때 만든 요약 카드 원본 (만들지 못했으면 null). video: 마지막 행동 영상 (없으면 null) */
     record SymptomPart(Long symptomReportId, CowPart cow, List<String> matchedSymptoms, Integer matchedCount,
-            Instant foundAt, String barn, List<PhotoPart> photos, Map<String, Object> card) {
+            Instant foundAt, String barn, List<PhotoPart> photos, VideoPart video, Map<String, Object> card) {
     }
 
     record CowPart(String tag4, String tagFull, String breed, String sex, LocalDate birthDate) {
     }
 
-    /** 부위 일치 결과만 (질병 관련 표시 없음). match: null = 확인 안 됨 */
-    record PhotoPart(Long mediaId, String requestedPart, String predictedPart, Boolean match) {
+    /** 부위 일치 결과만 (질병 관련 표시 없음). match: null = 확인 안 됨. url: 원본 서명 URL (만료 10분) */
+    record PhotoPart(Long mediaId, String requestedPart, String predictedPart, Boolean match, String url) {
+    }
+
+    /** 행동 영상. ratio: stand · lie · eat (%, 참고). null = 분류 안 됨 */
+    record VideoPart(Long mediaId, String url, Map<String, Integer> ratio) {
     }
 
     /** status: sent(부탁받음) | checking | done. missing 은 아직 빈 칸 */
