@@ -54,7 +54,7 @@ jobs:
           SSH="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=accept-new $DEPLOY_USER@$DEPLOY_HOST"
 
           $SSH "mkdir -p ~/mnm"
-          tar -C infra/docker -cf - compose.deploy.yml nginx \
+          tar -C infra/docker -cf - compose.deploy.yml nginx monitor \
             | $SSH "tar -C ~/mnm -xf - && mv ~/mnm/compose.deploy.yml ~/mnm/compose.yml"
 
           # 토큰은 표준 입력으로만 넘기고, 받은 뒤 로그아웃한다
