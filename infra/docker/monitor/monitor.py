@@ -28,6 +28,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+USER_AGENT = "mnm-monitor/1.0 (+https://github.com/mnms-chonsu-lab/mnm-dev)"
+
 STATUS_RE = re.compile(r'" (\d{3}) \d+ platform=')
 
 
@@ -195,8 +197,10 @@ class Monitor:
 
     def _send_webhook(self, text: str) -> None:
         key = "text" if self.cfg.webhook_format == "slack" else "content"
+        # User-Agent 를 직접 적는다. 디스코드는 파이썬 기본값(Python-urllib/x.y)을 403 으로 막는다 (#38)
         req = urllib.request.Request(self.cfg.webhook_url, data=json.dumps({key: text}).encode(),
-                                     headers={"Content-Type": "application/json"}, method="POST")
+                                     headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
+                                     method="POST")
         urllib.request.urlopen(req, timeout=10).close()
 
 
