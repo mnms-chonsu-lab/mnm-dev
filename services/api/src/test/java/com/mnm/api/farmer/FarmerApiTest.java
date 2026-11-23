@@ -184,7 +184,7 @@ class FarmerApiTest {
         fields.put("birth_date", FarmerRules.today().plusDays(1).toString());
         fields.put("sex", "암컷");
         fields.put("weight", "30");
-        doReturn(new RouteResult("history_report", List.of(new RouteItem("출생", "송아지 낳음", null, null, null)),
+        doReturn(new RouteResult("history_report", List.of(new RouteItem("출생", "송아지 낳음", null, null, null, null)),
                 "birth", fields, List.of())).when(aiClient).route(any());
 
         farmer(post("/api/farmer/records/text").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"송아지 낳았어\"}"))
@@ -193,6 +193,47 @@ class FarmerApiTest {
                 .andExpect(jsonPath("$.data.report_fields.weight").doesNotExist())
                 .andExpect(jsonPath("$.data.missing", contains("mother_tag4", "birth_date", "breed")))
                 .andExpect(jsonPath("$.data.report_notice").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    /** 같은 농장에 끝 4자리가 같은 소 (시드 farm 1 과 같은 상황) */
+    private Cow twin() {
+        Cow twin = entity(Cow.class, Map.of("id", 6L, "farm", farm, "tagLast4", "0871", "tagFull", "002123460871",
+                "breed", "한우", "sex", "암", "status", "active", "source", "trace"));
+        given(cowRepository.findByFarmIdAndStatus(FARM_ID, "active")).willReturn(List.of(mother, twin));
+        given(cowRepository.findByFarmId(FARM_ID)).willReturn(List.of(mother, twin));
+        return twin;
+    }
+
+    @Test
+    void 끝_4자리가_겹치는데_4자리만_말하면_소를_비워_두고_다시_묻는다() throws Exception {
+        twin();
+        farmer(post("/api/farmer/records/text").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"어젯밤에 0871번이 송아지 낳았어\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].cow_id").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.report_fields.mother_tag4").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.missing", org.hamcrest.Matchers.hasItem("mother_tag4")));
+    }
+
+    @Test
+    void 끝_4자리가_겹쳐도_12자리를_말하면_그_소로_정해진다() throws Exception {
+        twin();
+        farmer(post("/api/farmer/records/text").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"어젯밤에 002123460871번이 송아지 낳았어\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].cow_id").value(6))
+                .andExpect(jsonPath("$.data.report_fields.mother_tag4").value("002123460871"));
+    }
+
+    @Test
+    void 끝_4자리가_겹치는_소를_4자리로_저장하면_VALID_422() throws Exception {
+        twin();
+        farmer(post("/api/farmer/diary").contentType(MediaType.APPLICATION_JSON).content("""
+                {"items":[{"category":"출생","value":"송아지 낳음","cow_id":5}],
+                 "report":{"type":"출생","fields":{"mother_tag4":"0871"}}}
+                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message").value("0871번이 2마리예요. 어느 소인지 골라 주세요."));
     }
 
     @Test

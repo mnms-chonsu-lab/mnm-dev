@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,14 +108,14 @@ class HistoryReportService {
         FarmInfo farm = support.farm(userId);
         HistoryReport report = find(farm, reportId);
         Map<String, Object> f = support.readMap(report.getFields());
-        Map<String, Cow> cows = cowsByTag4(farm.getId());
+        List<Cow> cows = cows(farm.getId());
         List<CopyLine> lines = new ArrayList<>();
         lines.add(new CopyLine("신고인", farm.getOwner().getName()));
         lines.add(new CopyLine("농장", farm.getName() + (farm.getAddress() == null ? "" : " (" + farm.getAddress() + ")")));
         lines.add(new CopyLine("농장식별번호", farm.getFarmNo()));
         switch (report.getType()) {
             case "출생" -> {
-                Cow mother = cows.get(str(f.get("mother_tag4")));
+                Cow mother = cowOf(cows, f.get("mother_tag4"));
                 lines.add(new CopyLine("어미 소", cowLabel(mother, f.get("mother_tag4"))));
                 lines.add(new CopyLine("태어난 날", koreanDate(f.get("birth_date"))));
                 lines.add(new CopyLine("성별", value(f.get("sex"))));
@@ -124,14 +123,14 @@ class HistoryReportService {
                 lines.add(new CopyLine("송아지 귀표", tagSpaced(str(f.get("calf_tag")))));
             }
             case "폐사" -> {
-                Cow cow = cows.get(str(f.get("cow_tag")));
+                Cow cow = cowOf(cows, f.get("cow_tag"));
                 lines.add(new CopyLine("개체식별번호", cowLabel(cow, f.get("cow_tag"))));
                 lines.add(new CopyLine("폐사한 날", koreanDate(f.get("death_date"))));
                 lines.add(new CopyLine("품종·성별", cow == null ? "(빈칸)" : value(cow.getBreed()) + " · " + value(cow.getSex())));
             }
             default -> {
                 lines.add(new CopyLine("구분", report.getType()));
-                lines.add(new CopyLine("개체식별번호", cowLabel(cows.get(str(f.get("cow_tag"))), f.get("cow_tag"))));
+                lines.add(new CopyLine("개체식별번호", cowLabel(cowOf(cows, f.get("cow_tag")), f.get("cow_tag"))));
                 lines.add(new CopyLine("날짜", koreanDate(f.get("move_date"))));
                 lines.add(new CopyLine("상대 농장식별번호", value(f.get("counterpart_farm_no"))));
                 lines.add(new CopyLine("상대방 성명", value(f.get("counterpart_name"))));
@@ -156,8 +155,7 @@ class HistoryReportService {
         Instant now = Instant.now();
         LocalDate today = FarmerRules.today();
         Map<String, Object> fields = support.readMap(report.getFields());
-        Map<String, Cow> cows = cowsByTag4(farm.getId());
-        Cow subject = cows.get(str(fields.get("출생".equals(report.getType()) ? "mother_tag4" : "cow_tag")));
+        Cow subject = cowOf(cows(farm.getId()), fields.get("출생".equals(report.getType()) ? "mother_tag4" : "cow_tag"));
         String title = FarmerRules.taskTitle(report.getType());
 
         if ("self".equals(mode)) {
@@ -199,10 +197,10 @@ class HistoryReportService {
     HistoryReportResponse toResponse(HistoryReport report, FarmInfo farm) {
         Map<String, Object> fields = support.readMap(report.getFields());
         List<String> missing = support.readList(report.getMissing());
-        Map<String, Cow> cows = cowsByTag4(farm.getId());
+        List<Cow> cows = cows(farm.getId());
         List<ReportCow> reportCows = new ArrayList<>();
         for (String field : TAG_FIELDS.stream().sorted().toList()) {
-            Cow cow = cows.get(str(fields.get(field)));
+            Cow cow = cowOf(cows, fields.get(field));
             if (cow != null) {
                 reportCows.add(new ReportCow(field, cow.getId(), cow.getTagLast4(), cow.getTagFull(), cow.getBreed(),
                         cow.getSex(), cow.getBirthDate(), FarmerSupport.age(cow.getBirthDate())));
@@ -235,7 +233,7 @@ class HistoryReportService {
             boolean strict) {
         List<String> allowed = ALLOWED_FIELDS.get(isMove(type) ? "이동" : type);
         boolean bought = "양수".equals(type);
-        Map<String, Cow> cows = null;
+        List<Cow> cows = null;
         for (Map.Entry<String, Object> e : changes.entrySet()) {
             String key = e.getKey();
             if (!allowed.contains(key)) {
@@ -248,9 +246,14 @@ class HistoryReportService {
             String clean = value == null ? null : FarmerRules.normalize(key, value);
             if (clean != null && TAG_FIELDS.contains(key) && !bought) {
                 if (cows == null) {
-                    cows = cowsByTag4(farm.getId());
+                    cows = cows(farm.getId());
                 }
-                clean = myTag4(clean, cows);
+                List<Cow> found = candidates(cows, clean);
+                if (strict && found.size() > 1) {
+                    throw invalid(found.getFirst().getTagLast4() + "번이 " + found.size() + "마리예요. 어느 소인지 골라 주세요.",
+                            "끝 4자리 겹침: " + key);
+                }
+                clean = found.size() == 1 ? savedTag(found.getFirst(), cows) : null;
             }
             if (strict && value != null && clean == null) {
                 throw invalid(invalidMessage(key, bought), "형식 오류: " + key);
@@ -259,7 +262,7 @@ class HistoryReportService {
         }
         // 송아지 품종을 따로 말하지 않았으면 어미 소의 이력제 품종으로 채운다
         if ("출생".equals(type) && str(base.get("breed")) == null && str(base.get("mother_tag4")) != null) {
-            Cow mother = (cows == null ? cowsByTag4(farm.getId()) : cows).get(str(base.get("mother_tag4")));
+            Cow mother = cowOf(cows == null ? cows(farm.getId()) : cows, base.get("mother_tag4"));
             if (mother != null && mother.getBreed() != null) {
                 base.put("breed", mother.getBreed());
             }
@@ -267,10 +270,13 @@ class HistoryReportService {
         return base;
     }
 
-    /** 소 칸은 내 소 목록(뺀 소 포함)의 끝 4자리로 저장한다. 목록에 없으면 null. 양수는 아직 목록에 없으므로 부르지 않는다 */
-    private static String myTag4(String tag, Map<String, Cow> cows) {
-        String tag4 = tag.length() == 12 ? tag.substring(8) : tag;
-        return cows.containsKey(tag4) ? tag4 : null;
+    /**
+     * 소 칸은 내 소 목록(뺀 소 포함)의 끝 4자리로 저장한다. 같은 끝 4자리 소가 여럿이면 끝 4자리로는 가릴 수 없으니 12자리로.
+     * 양수는 아직 목록에 없으므로 부르지 않는다
+     */
+    private static String savedTag(Cow cow, List<Cow> cows) {
+        return cow.getTagFull() == null || candidates(cows, cow.getTagLast4()).equals(List.of(cow))
+                ? cow.getTagLast4() : cow.getTagFull();
     }
 
     private static String invalidMessage(String key, boolean bought) {
@@ -319,12 +325,34 @@ class HistoryReportService {
         }
     }
 
-    /** 끝 4자리 → 소. 같은 끝 4자리가 여럿이면 목록에 있는 소를 먼저 */
-    Map<String, Cow> cowsByTag4(Long farmId) {
-        return cowRepository.findByFarmId(farmId).stream()
-                .filter(c -> c.getTagLast4() != null)
-                .sorted(Comparator.comparing(Cow::isActive))
-                .collect(Collectors.toMap(Cow::getTagLast4, c -> c, (a, b) -> b, LinkedHashMap::new));
+    /** 내 소 (뺀 소 포함) */
+    private List<Cow> cows(Long farmId) {
+        return cowRepository.findByFarmId(farmId).stream().filter(c -> c.getTagLast4() != null).toList();
+    }
+
+    /** 귀표(4자리·12자리) 칸이 가리키는 소. 없거나 같은 끝 4자리 소가 여럿이면 null */
+    static Cow cowOf(List<Cow> cows, Object tag) {
+        String t = str(tag);
+        List<Cow> found = t == null ? List.of() : candidates(cows, t);
+        return found.size() == 1 ? found.getFirst() : null;
+    }
+
+    /**
+     * 귀표에 맞는 소 후보. 12자리는 그 소 (12자리를 모르는 소는 끝 4자리로 맞춘다).
+     * 끝 4자리는 목록에 있는 소를 먼저 보고, 없으면 뺀 소에서 찾는다. 2마리 이상이면 다시 물어야 한다
+     */
+    static List<Cow> candidates(List<Cow> cows, String t) {
+        List<Cow> same = t.length() == 12
+                ? cows.stream().filter(c -> t.equals(c.getTagFull())).toList()
+                : List.of();
+        if (same.isEmpty()) {
+            String tag4 = t.length() == 12 ? t.substring(8) : t;
+            same = cows.stream()
+                    .filter(c -> tag4.equals(c.getTagLast4()) && (t.length() != 12 || c.getTagFull() == null))
+                    .toList();
+        }
+        List<Cow> active = same.stream().filter(Cow::isActive).toList();
+        return active.isEmpty() ? same : active;
     }
 
     static String taskKind(String type) {

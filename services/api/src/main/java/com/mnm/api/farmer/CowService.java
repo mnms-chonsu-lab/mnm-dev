@@ -125,7 +125,8 @@ class CowService {
             if (request.reportRequested() && type != null) {
                 // 날짜는 모르므로 비워 두고 F-S04Q 에서 묻는다
                 Map<String, Object> fields = new LinkedHashMap<>();
-                fields.put("cow_tag", cow.getTagLast4());
+                // 12자리로 넘겨야 같은 끝 4자리 소가 있어도 이 소로 정해진다
+                fields.put("cow_tag", cow.getTagFull() == null ? cow.getTagLast4() : cow.getTagFull());
                 HistoryReport report = historyReportService.createDraft(farm, type, fields);
                 reportId = report.getId();
             }

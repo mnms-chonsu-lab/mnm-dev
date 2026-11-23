@@ -25,7 +25,7 @@ class MockAiClientTest {
     @Test
     void S1_출생_발화는_신고서_항목과_어제_날짜로_정리된다() {
         RouteResult r = client.route(new RouteRequest(MockAiClient.DEMO_STT_TEXT, TODAY,
-                List.of(new RouteCow("0871", null, "1번 축사"))));
+                List.of(new RouteCow("0871", null, "1번 축사", "002123450871"))));
 
         assertThat(r.intent()).isEqualTo("history_report");
         assertThat(r.reportType()).isEqualTo("birth");
@@ -41,12 +41,28 @@ class MockAiClientTest {
     @Test
     void 일지_발화는_분류별_항목으로_나뉘고_목록에_없는_번호는_빈칸() {
         RouteResult r = client.route(new RouteRequest("아침에 2번 축사 소독했어. 9999번이 사료를 좀 남겼어.", TODAY,
-                List.of(new RouteCow("1234", null, null))));
+                List.of(new RouteCow("1234", null, null, null))));
 
         assertThat(r.intent()).isEqualTo("diary");
         assertThat(r.items()).extracting(AiClient.RouteItem::category).containsExactly("소독", "관찰");
         assertThat(r.items().get(1).cowTag4()).isNull();
         assertThat(r.missing()).containsExactly("cow");
+    }
+
+    @Test
+    void 끝_4자리가_겹치면_4자리로는_정하지_않고_12자리로는_정한다() {
+        List<RouteCow> cows = List.of(new RouteCow("0871", null, "1번 축사", "900000000871"),
+                new RouteCow("0871", null, "2번 축사", "900000010871"));
+
+        RouteResult four = client.route(new RouteRequest("0871번이 사료를 남겼어", TODAY, cows));
+        assertThat(four.items().getFirst().cowTag4()).isNull();
+        assertThat(four.items().getFirst().cowTag()).isNull();
+        assertThat(four.missing()).containsExactly("cow");
+
+        RouteResult full = client.route(new RouteRequest("900000010871번이 사료를 남겼어", TODAY, cows));
+        assertThat(full.items().getFirst().cowTag4()).isEqualTo("0871");
+        assertThat(full.items().getFirst().cowTag()).isEqualTo("900000010871");
+        assertThat(full.missing()).isEmpty();
     }
 
     @Test
