@@ -129,11 +129,14 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 
 | 항목 | 내용 |
 | --- | --- |
-| 감사 기록 | 계정·기관·문구를 만들거나 바꾸면 `AdminSupport.audit()`으로 `audit_log`에 남깁니다(action: `create` · `update` · `publish` · `password_reset`) |
+| 감사 기록 | 계정·기관·문구를 만들거나 바꾸면 `AdminSupport.audit()`으로 `audit_log`에 남깁니다(action: `create` · `update` · `publish` · `password_reset` · `retry`(다시 보내기) · `run`(지금 수집)) |
 | 임시 비밀번호 | 접수자·운영자 계정 생성·초기화 때 서버가 만들어 응답에서 한 번만 보여줍니다. DB 에는 BCrypt 해시만 저장합니다 |
 | 문구 버전 | 게시된 문구를 고치면 새 버전(초안)을 만들고, 새 버전을 게시하면 같은 자리의 이전 게시 버전을 초안으로 내립니다. 이전 버전을 가리키는 컬럼이 없어 "같은 자리"를 분류·질병·단계·순서·부위·조항으로 찾습니다 |
 | 대시보드 | AI 상태는 `inference_log` 최근 1시간, 수집 상태는 `etl_job_run` 작업별 마지막 실행으로 봅니다. 날짜 경계는 한국 시간입니다 |
-| 아직 없는 것 | `ADM-06` 전달 현황(농가 API 머지 후), `ADM-09~11`(수집 실행·모델·AI 로그) |
+| AI 오류율 | 계산식 ⑪: `inference_log.http_status` 503·504만 실패, 404·422는 호출 수에만 셉니다. `http_status`가 없는 옛 기록은 뺍니다. 대시보드·`ai-metrics` 같은 기준 |
+| 지금 수집 | `etl_job_run`에 `requested` 한 줄만 넣습니다. 실행은 mnm-data ETL 예약 작업(`etl/run_requested.py`, 5분마다)이 합니다. 같은 작업이 `requested`·`running`이면 `CONFLICT-409` |
+| 다시 보내기 | 전달은 저장과 같은 트랜잭션이라 지금은 `queued`·`failed`가 생기지 않습니다. 생기면 `delivered`로 바꿔 수신함에 넣습니다 |
+| 아직 없는 것 | `ADM-10` 모델 관리(AI 서버 MLflow 내부 API 명세 대기), A-S04 행 클릭 시 요약 열람 |
 
 ## 새 API 추가 순서
 

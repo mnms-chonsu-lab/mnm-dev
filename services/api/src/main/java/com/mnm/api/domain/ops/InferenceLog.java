@@ -42,6 +42,10 @@ public class InferenceLog {
     @Column(columnDefinition = "text")
     private String error;
 
+    /** AI 서버 응답 상태 (200·404·422·503·504). 칸이 생기기 전 기록은 null. 계산식 ⑪은 503·504만 실패로 센다 */
+    @Column(name = "http_status")
+    private Short httpStatus;
+
     @Generated
     @Column(nullable = false)
     private Instant at;

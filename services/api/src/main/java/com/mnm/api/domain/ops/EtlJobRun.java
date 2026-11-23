@@ -33,7 +33,7 @@ public class EtlJobRun {
     @Column(name = "finished_at")
     private Instant finishedAt;
 
-    /** running | success | failed */
+    /** requested(어드민 [지금 수집]) | running | success | failed */
     @Column(nullable = false, length = 20)
     private String status;
 
@@ -42,4 +42,13 @@ public class EtlJobRun {
 
     @Column(columnDefinition = "text")
     private String error;
+
+    /** 어드민 [지금 수집] 요청. 수집 서버의 예약 작업이 이 행을 이어받아 running → success/failed 로 바꾼다 */
+    public static EtlJobRun request(String job) {
+        EtlJobRun run = new EtlJobRun();
+        run.job = job;
+        run.startedAt = Instant.now();
+        run.status = "requested";
+        return run;
+    }
 }
