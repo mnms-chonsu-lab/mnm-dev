@@ -102,6 +102,29 @@ class MonitorTest(unittest.TestCase):
         self.ai = (200, {"status": "ok", "calls_5m": {"calls": 10, "failures": 5}})
         self.assertEqual(self.mon.step(), ["ai_error_rate"])
 
+    def test_webhook_sets_user_agent(self):
+        # 디스코드는 파이썬 기본 User-Agent 를 403 으로 막는다 (#38)
+        import monitor as m
+        seen = {}
+
+        class Resp:
+            def close(self):
+                pass
+
+        def fake_urlopen(req, timeout):
+            seen["ua"] = req.get_header("User-agent")
+            seen["body"] = req.data
+            return Resp()
+
+        orig = m.urllib.request.urlopen
+        m.urllib.request.urlopen = fake_urlopen
+        try:
+            Monitor(Config(log_path=self.log, webhook_url="https://hook.example/x"), clock=self.clock)._send_webhook("hi")
+        finally:
+            m.urllib.request.urlopen = orig
+        self.assertTrue(seen["ua"].startswith("mnm-monitor/"))
+        self.assertEqual(seen["body"], b'{"content": "hi"}')
+
 
 if __name__ == "__main__":
     unittest.main()
