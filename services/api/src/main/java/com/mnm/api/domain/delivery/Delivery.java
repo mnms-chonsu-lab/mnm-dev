@@ -91,4 +91,9 @@ public class Delivery {
         delivery.status = status;
         return delivery;
     }
+
+    /** 어드민 [다시 보내기] (ADM-06): 대기·실패 건을 접수자 수신함에 보이게 한다 */
+    public void markDelivered() {
+        this.status = "delivered";
+    }
 }

@@ -19,10 +19,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mnm.api.TestTokens;
 import com.mnm.api.domain.audit.AuditLog;
+import com.mnm.api.domain.delivery.Delivery;
+import com.mnm.api.domain.delivery.ReceiverCheck;
 import com.mnm.api.domain.farm.FarmInfo;
 import com.mnm.api.domain.guide.BiosecurityRule;
 import com.mnm.api.domain.ops.EtlJobRun;
+import com.mnm.api.domain.ops.InferenceLog;
 import com.mnm.api.domain.org.ReceiverOrg;
+import com.mnm.api.domain.report.HistoryReport;
+import com.mnm.api.domain.report.ReportSummary;
+import com.mnm.api.domain.symptom.SymptomReport;
 import com.mnm.api.domain.user.User;
 import java.time.Duration;
 import java.time.Instant;
@@ -50,7 +56,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * 어드민 API (ADM-01~05, 07, 08, 12)를 실제 보안·검증·응답 설정 그대로 확인한다.
+ * 어드민 API (ADM-01~09, 11, 12)를 실제 보안·검증·응답 설정 그대로 확인한다.
  * DB 없이 띄우고(nodb) 리포지토리·트랜잭션은 가짜로 바꾼다. 엔티티 변경은 메모리의 객체에 그대로 남는다.
  */
 @SpringBootTest
@@ -82,6 +88,10 @@ class AdminApiTest {
     AdminAuditRepository auditRepository;
     @MockitoBean
     AdminMetricsRepository metricsRepository;
+    @MockitoBean
+    AdminDeliveryRepository deliveryRepository;
+    @MockitoBean
+    AdminEtlRepository etlRepository;
     @MockitoBean
     PlatformTransactionManager transactionManager;
 
@@ -414,6 +424,155 @@ class AdminApiTest {
                 .andReturn().getResponse().getContentAsString();
         // 한국 0시 = 전날 15:00 UTC
         assertThat((String) JsonPath.read(body, "$.data.since")).endsWith("T15:00:00Z");
+    }
+
+    // ---- ADM-06 전달 현황 ----
+
+    @Test
+    void 전달_현황은_종류와_접수자_처리_상태를_보여주고_처리_기록이_없으면_새로_도착() throws Exception {
+        User owner = entity(User.class, Map.of("id", 2L, "role", "farmer", "name", "김한우"));
+        FarmInfo farm = farm(owner);
+        SymptomReport sr = entity(SymptomReport.class, Map.of("id", 3L, "farm", farm));
+        ReportSummary rs = entity(ReportSummary.class, Map.of("id", 4L, "symptomReport", sr));
+        Delivery call = entity(Delivery.class, Map.of("id", 11L, "reportSummary", rs, "route", "call",
+                "ccOrg", hongseong, "status", "delivered", "approvedAt", Instant.parse("2026-11-14T00:42:00Z")));
+        HistoryReport hr = entity(HistoryReport.class, Map.of("id", 5L, "farm", farm, "type", "birth"));
+        Delivery coop = entity(Delivery.class, Map.of("id", 10L, "historyReport", hr, "route", "coop",
+                "org", hongseong, "status", "delivered", "approvedAt", Instant.parse("2026-11-13T11:10:00Z")));
+        given(deliveryRepository.search(isNull(), isNull(), isNull(), eq(Instant.EPOCH),
+                eq(Instant.parse("9999-12-31T00:00:00Z")), eq(Long.MAX_VALUE), any()))
+                .willReturn(List.of(call, coop));
+        ReceiverCheck done = entity(ReceiverCheck.class, Map.of("id", 1L, "delivery", coop, "status", "done"));
+        given(deliveryRepository.latestChecks(List.of(11L, 10L))).willReturn(List.of(done));
+
+        mvc.perform(get("/api/admin/deliveries").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].kind").value("symptom"))
+                .andExpect(jsonPath("$.data.items[0].farmer_name").value("김한우"))
+                .andExpect(jsonPath("$.data.items[0].org_name").value(nullValue()))
+                .andExpect(jsonPath("$.data.items[0].cc_org_name").value("홍성축협"))
+                .andExpect(jsonPath("$.data.items[0].receiver_status").value("new"))
+                .andExpect(jsonPath("$.data.items[1].kind").value("birth"))
+                .andExpect(jsonPath("$.data.items[1].receiver_status").value("done"))
+                .andExpect(jsonPath("$.data.has_next").value(false));
+    }
+
+    @Test
+    void 다시_보내기는_실패_건만_도착으로_바꾸고_감사_기록을_남긴다() throws Exception {
+        User owner = entity(User.class, Map.of("id", 2L, "role", "farmer", "name", "최민호"));
+        HistoryReport hr = entity(HistoryReport.class, Map.of("id", 5L, "farm", farm(owner), "type", "death"));
+        Delivery failed = entity(Delivery.class, Map.of("id", 12L, "historyReport", hr, "route", "coop",
+                "org", hongseong, "status", "failed"));
+        given(deliveryRepository.findById(12L)).willReturn(Optional.of(failed));
+
+        mvc.perform(post("/api/admin/deliveries/12/retry").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("delivered"))
+                .andExpect(jsonPath("$.data.receiver_status").value("new"));
+        assertThat(auditOf(0).getAction()).isEqualTo("retry");
+        assertThat(auditOf(0).getTargetId()).isEqualTo(12L);
+
+        // 이미 도착한 건은 다시 보내지 않는다
+        mvc.perform(post("/api/admin/deliveries/12/retry").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT-409"));
+        mvc.perform(post("/api/admin/deliveries/99/retry").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- ADM-09 공공데이터 수집 ----
+
+    @Test
+    void 수집_현황은_작업_3개를_고정_순서로_마지막_실행과_마지막_성공을_함께_보여준다() throws Exception {
+        EtlJobRun failed = entity(EtlJobRun.class, Map.of("id", 3L, "job", "disinfection_facility", "status", "failed",
+                "startedAt", Instant.parse("2026-11-13T21:00:00Z"), "error", "API 응답 시간 초과"));
+        EtlJobRun ok = entity(EtlJobRun.class, Map.of("id", 2L, "job", "disinfection_facility", "status", "success",
+                "startedAt", Instant.parse("2026-11-12T21:00:00Z"), "rows", 214));
+        given(metricsRepository.latestEtlRuns()).willReturn(List.of(failed));
+        given(etlRepository.lastSuccesses()).willReturn(List.of(ok));
+        given(etlRepository.busyJobs()).willReturn(List.of("outbreak"));
+
+        mvc.perform(get("/api/admin/etl/jobs").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].job").value("outbreak"))
+                .andExpect(jsonPath("$.data[0].busy").value(true))
+                .andExpect(jsonPath("$.data[0].last_run").value(nullValue()))
+                .andExpect(jsonPath("$.data[1].schedule").value("monthly"))
+                .andExpect(jsonPath("$.data[2].last_run.status").value("failed"))
+                .andExpect(jsonPath("$.data[2].last_run.error").value("API 응답 시간 초과"))
+                .andExpect(jsonPath("$.data[2].last_success.rows").value(214))
+                .andExpect(jsonPath("$.data[2].busy").value(false));
+    }
+
+    @Test
+    void 지금_수집은_요청_기록만_남기고_실행_중이면_CONFLICT_모르는_작업은_404() throws Exception {
+        given(etlRepository.save(any())).willAnswer(inv -> withId(inv.getArgument(0), 7L));
+
+        mvc.perform(post("/api/admin/etl/jobs/outbreak/run").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.etl_job_run_id").value(7))
+                .andExpect(jsonPath("$.data.status").value("requested"))
+                .andExpect(jsonPath("$.data.job").value("outbreak"));
+        assertThat(auditOf(0).getAction()).isEqualTo("run");
+
+        given(etlRepository.existsByJobAndStatusIn(eq("farm_scale"), any())).willReturn(true);
+        mvc.perform(post("/api/admin/etl/jobs/farm_scale/run").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/admin/etl/jobs/weather/run").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isNotFound());
+        verify(etlRepository).save(any());
+    }
+
+    // ---- ADM-11 AI 지표·로그 ----
+
+    @Test
+    void AI_지표는_기능별_값을_합치고_평소와_다름_문제_없음_비율을_준다() throws Exception {
+        // [feature, 호출, 실패(503·504), 평균 지연, 404, 422]
+        given(metricsRepository.inferenceStatsByFeature(any())).willReturn(List.of(
+                new Object[] {"guide", 10L, 0L, 1000.0, 3L, 0L},
+                new Object[] {"stt", 30L, 2L, 2000.0, 0L, 1L}));
+        given(metricsRepository.diffFeedback()).willReturn(List.<Object[]>of(new Object[] {3L, 1L}));
+
+        mvc.perform(get("/api/admin/ai-metrics").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.calls").value(40))
+                .andExpect(jsonPath("$.data.total.failures").value(2))
+                .andExpect(jsonPath("$.data.total.error_rate").value(0.05))
+                .andExpect(jsonPath("$.data.total.avg_latency_ms").value(1750))
+                .andExpect(jsonPath("$.data.total.no_evidence").value(3))
+                .andExpect(jsonPath("$.data.features[0].feature").value("guide"))
+                .andExpect(jsonPath("$.data.features[0].error_rate").value(0.0))
+                .andExpect(jsonPath("$.data.diff_ok_rate").value(0.25))
+                .andExpect(jsonPath("$.data.diff_feedback_count").value(4));
+    }
+
+    @Test
+    void AI_호출이_없으면_오류율과_평균_지연은_null() throws Exception {
+        given(metricsRepository.inferenceStatsByFeature(any())).willReturn(List.of());
+        given(metricsRepository.diffFeedback()).willReturn(List.<Object[]>of(new Object[] {null, null}));
+
+        mvc.perform(get("/api/admin/ai-metrics").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$.data.total.calls").value(0))
+                .andExpect(jsonPath("$.data.total.error_rate").value(nullValue()))
+                .andExpect(jsonPath("$.data.total.avg_latency_ms").value(nullValue()))
+                .andExpect(jsonPath("$.data.diff_ok_rate").value(nullValue()));
+    }
+
+    @Test
+    void AI_호출_로그는_기능으로_거르고_응답_상태를_보여준다() throws Exception {
+        InferenceLog log = entity(InferenceLog.class, Map.of("id", 9L, "feature", "part_check",
+                "modelVersion", "siglip2-v1", "resultSummary", "hoof→hoof 0.91", "latencyMs", 800,
+                "httpStatus", (short) 200, "at", Instant.parse("2026-11-14T00:58:10Z")));
+        given(metricsRepository.searchInferenceLogs(eq("part_check"), eq(Instant.EPOCH),
+                eq(Instant.parse("9999-12-31T00:00:00Z")), eq(Long.MAX_VALUE), any()))
+                .willReturn(List.of(log));
+
+        mvc.perform(get("/api/admin/inference-logs").param("feature", "part_check")
+                        .header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].model_version").value("siglip2-v1"))
+                .andExpect(jsonPath("$.data.items[0].http_status").value(200))
+                .andExpect(jsonPath("$.data.items[0].error").value(nullValue()));
     }
 
     // ---- ADM-12 감사 로그 ----

@@ -34,7 +34,7 @@ paths:
         한국 시간 0시(since)부터. data = { records, deliveries, pending_receipts, ai_error_rate, since }
         - records = 일지 기록("신고" 자동 줄 제외) + 소 상태 기록
         - pending_receipts = 도착한 전달 중 마지막 처리 상태가 처리 완료가 아닌 것
-        - ai_error_rate = 0~1, 오늘 AI 호출이 없으면 null
+        - ai_error_rate = 0~1, 오늘 AI 호출이 없으면 null. 실패는 503·504만 (계산식 ⑪, ai-metrics 와 같은 기준)
       responses:
         '200': { description: 오늘 수치 }
   /api/admin/users:
@@ -222,11 +222,104 @@ paths:
       summary: 감사 로그 (ADM-12, A-S08)
       description: |
         최근순 20개씩. 기간은 [from, to). items[] = { audit_log_id, at, users_id, user_name, user_role, action, target_type, target_id }
-        action: create · update · publish · password_reset (어드민) / view 등 (접수자 API 가 남긴다)
+        action: create · update · publish · password_reset · retry · run (어드민) / view 등 (접수자 API 가 남긴다)
       parameters:
         - { name: users_id, in: query, schema: { type: integer } }
         - { name: action, in: query, schema: { type: string } }
         - { name: target_type, in: query, schema: { type: string }, description: 'user · receiver_org · biosecurity_rule 등' }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse' }
+  /api/admin/deliveries:
+    get:
+      tags: [어드민]
+      summary: 신고·전달 현황 (ADM-06, A-S04)
+      description: |
+        최근순 20개씩. 승인 시각 기준 [from, to). 요약·신고서 내용은 주지 않는다.
+        items[] = { deliveries_id, approved_at, received_at, farm_id, farmer_name, kind, route, org_name, cc_org_name, status, receiver_status }
+        kind: symptom(소 상태 기록) · birth · death · move 등(이력 신고서). status(전달): delivered · queued · failed.
+        receiver_status(접수자 처리): new · checking · done, 도착 전이면 null
+      parameters:
+        - { name: route, in: query, schema: { type: string, enum: [call, coop, web, gov] } }
+        - { name: status, in: query, schema: { type: string, enum: [delivered, queued, failed] }, description: '실패만 = failed' }
+        - { name: org_id, in: query, schema: { type: integer }, description: '받는 기관 또는 함께 받는 축협' }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse' }
+  /api/admin/deliveries/{id}/retry:
+    post:
+      tags: [어드민]
+      summary: 다시 보내기 (ADM-06, A-S04)
+      description: 대기·실패 건을 도착(delivered)으로 바꿔 접수자 수신함에 넣는다. 감사 기록 action = retry. 응답은 목록 한 줄과 같은 형식
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: 'DeliveryRow' }
+        '404': { description: NF-404 }
+        '409': { description: CONFLICT-409 (이미 도착) }
+  /api/admin/etl/jobs:
+    get:
+      tags: [어드민]
+      summary: 공공데이터 수집 현황 (ADM-09, A-S06)
+      description: |
+        작업 3개 고정 순서: outbreak(질병 발생, daily) · farm_scale(사육규모, monthly) · disinfection_facility(거점소독시설, daily).
+        data[] = { job, schedule, last_run, last_success, busy }. last_run · last_success = 실행 기록 한 줄 또는 null.
+        busy 가 true 면 요청됐거나 실행 중 → [지금 수집] 막기
+      responses:
+        '200': { description: 'JobRow[]' }
+  /api/admin/etl/jobs/{job}/runs:
+    get:
+      tags: [어드민]
+      summary: 수집 실행 기록 (ADM-09, A-S06)
+      description: |
+        최근순 20개씩. items[] = { etl_job_run_id, job, status, started_at, finished_at, rows, error }
+        status: requested · running · success · failed
+      parameters:
+        - { name: job, in: path, required: true, schema: { type: string, enum: [outbreak, farm_scale, disinfection_facility] } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'PageResponse' }
+        '404': { description: NF-404 (없는 작업) }
+  /api/admin/etl/jobs/{job}/run:
+    post:
+      tags: [어드민]
+      summary: 지금 수집 (ADM-09, A-S06)
+      description: |
+        etl_job_run 에 status = requested 한 줄만 넣는다. 수집 서버 예약 작업(5분마다, mnm-data etl/run_requested.py)이
+        그 행을 running → success/failed 로 바꾼다. 감사 기록 action = run
+      parameters:
+        - { name: job, in: path, required: true, schema: { type: string, enum: [outbreak, farm_scale, disinfection_facility] } }
+      responses:
+        '201': { description: 'RunRow' }
+        '404': { description: NF-404 (없는 작업) }
+        '409': { description: CONFLICT-409 (요청됐거나 실행 중) }
+  /api/admin/ai-metrics:
+    get:
+      tags: [어드민]
+      summary: AI 지표 (ADM-11, A-S07)
+      description: |
+        최근 24시간 계산식 ⑪. 실패 = AI 서버 응답 503·504만. 404(근거 없음)·422(무음·열 수 없는 파일)는 호출 수에만 센다.
+        http_status 가 없는 옛 기록은 뺀다.
+        data = { since, total, features[], diff_ok_rate, diff_feedback_count }
+        total · features[] = { feature, calls, failures, error_rate(0~1, 호출 없으면 null), avg_latency_ms, no_evidence, bad_input }
+        feature: stt · route · part_check · behavior · guide · summary (total 은 null)
+        diff_ok_rate: 평소와 다름 알림 피드백 중 "문제 없음" 비율 (피드백 없으면 null, 기간 제한 없음)
+      responses:
+        '200': { description: 'AiMetrics' }
+  /api/admin/inference-logs:
+    get:
+      tags: [어드민]
+      summary: AI 호출 로그 (ADM-11, A-S07)
+      description: |
+        최근순 20개씩. 기간은 [from, to).
+        items[] = { inference_log_id, at, feature, model_version, input_kind, result_summary, latency_ms, error, http_status }
+        result_summary 는 AI 서버가 전화번호를 가린 요약(코드·개수)만 담는다
+      parameters:
+        - { name: feature, in: query, schema: { type: string, enum: [stt, route, part_check, behavior, guide, summary] } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
         - { name: cursor, in: query, schema: { type: string } }
