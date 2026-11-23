@@ -272,4 +272,20 @@ public class MockAiClient implements AiClient {
     private static String str(Object value) {
         return value == null || Objects.toString(value).isBlank() ? null : value.toString();
     }
+
+    /** 사진을 보지 않고 요청한 부위가 맞다고 돌려준다 */
+    @Override
+    public PartCheckResult partCheck(String imageUrl, String requestedPart) {
+        return new PartCheckResult(requestedPart, requestedPart, true, 0.9, new Quality(false, false, 128), "mock", false);
+    }
+
+    /** 영상을 보지 않고 기능명세서 F-S10V 예시 비율(눕기 70 · 서기 20 · 먹기 10)을 돌려준다 */
+    @Override
+    public BehaviorResult behavior(String videoUrl) {
+        List<BehaviorFrame> frames = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            frames.add(new BehaviorFrame(i, i < 7 ? "lie" : i < 9 ? "stand" : "eat", 0.8));
+        }
+        return new BehaviorResult(frames, "lie", "mock");
+    }
 }

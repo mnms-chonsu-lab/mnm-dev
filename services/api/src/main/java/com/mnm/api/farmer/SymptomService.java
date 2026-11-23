@@ -67,6 +67,7 @@ class SymptomService {
     private final FarmerDiaryRepository diaryRepository;
     private final FarmerMediaRepository mediaRepository;
     private final FarmerDeliveryRepository deliveryRepository;
+    private final MediaService mediaService;
 
     /** FARM-10 게시된 증상 질문. 순서대로 drool · blister · feed · lump 답 키를 붙인다 */
     @Transactional(readOnly = true)
@@ -120,7 +121,7 @@ class SymptomService {
         LocalDate found = foundDate(report, stored);
         Cow cow = report.getCow();
         List<DiaryEntryResponse> diary = diary(farm, found);
-        List<FieldMedia> photos = mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo");
+        List<FieldMedia> photos = FieldMedia.latestPerPart(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo"));
 
         Map<String, Object> form6 = null;
         String form6Text = null;
@@ -137,8 +138,10 @@ class SymptomService {
                         FarmerSupport.age(cow.getBirthDate()), cow.getBarn()),
                 matched.size(), matched, (String) stored.get("observed_text"), intOrNull(stored.get("head_count")), found,
                 report.getBarn(), relatedDiary(diary, cow, found), vaccine(diary, cow, found),
-                photos.stream().map(m -> new PhotoResult(m.getId(), partCode(m.getRequestedPart()), m.getMatch())).toList(),
-                FarmerRules.disease(answers), deliveryRepository.existsByReportSummarySymptomReportId(report.getId()),
+                photos.stream().map(m -> new PhotoResult(m.getId(), partCode(m.getRequestedPart()), m.getMatch(),
+                        mediaService.viewUrl(m))).toList(),
+                mediaService.video(report.getId()), FarmerRules.disease(answers),
+                deliveryRepository.existsByReportSummarySymptomReportId(report.getId()),
                 form6, form6Text);
     }
 
@@ -165,7 +168,7 @@ class SymptomService {
         Map<String, Object> stored = support.readMap(report.getAnswers());
         LocalDate found = foundDate(report, stored);
         return summaryRequest(farm, report, stored, diary(farm, found),
-                mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo"));
+                FieldMedia.latestPerPart(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo")));
     }
 
     SymptomReport find(FarmInfo farm, Long reportId) {

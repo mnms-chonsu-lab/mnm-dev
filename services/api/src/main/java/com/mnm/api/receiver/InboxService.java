@@ -14,12 +14,15 @@ import com.mnm.api.domain.guide.BiosecurityRule;
 import com.mnm.api.domain.org.ReceiverOrg;
 import com.mnm.api.domain.report.HistoryReport;
 import com.mnm.api.domain.report.ReportSummary;
+import com.mnm.api.domain.symptom.BehaviorRecord;
+import com.mnm.api.domain.symptom.FieldMedia;
 import com.mnm.api.domain.symptom.SymptomReport;
 import com.mnm.api.domain.task.Task;
 import com.mnm.api.domain.user.User;
 import com.mnm.api.global.error.BusinessException;
 import com.mnm.api.global.error.ErrorCode;
 import com.mnm.api.global.response.PageResponse;
+import com.mnm.api.global.storage.StorageClient;
 import com.mnm.api.receiver.InboxDtos.CowPart;
 import com.mnm.api.receiver.InboxDtos.DiaryItem;
 import com.mnm.api.receiver.InboxDtos.FarmBasics;
@@ -40,6 +43,7 @@ import com.mnm.api.receiver.InboxDtos.StatusRequest;
 import com.mnm.api.receiver.InboxDtos.StatusResponse;
 import com.mnm.api.receiver.InboxDtos.SymptomPart;
 import com.mnm.api.receiver.InboxDtos.TimelineItem;
+import com.mnm.api.receiver.InboxDtos.VideoPart;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
@@ -79,6 +83,8 @@ class InboxService {
     private final ReceiverAlertRepository alertRepository;
     private final ReceiverDiaryRepository diaryRepository;
     private final ReceiverMediaRepository mediaRepository;
+    private final ReceiverBehaviorRepository behaviorRepository;
+    private final StorageClient storage;
     private final ReceiverRuleRepository ruleRepository;
     private final ReceiverOutbreakRepository outbreakRepository;
     private final ReceiverTaskRepository taskRepository;
@@ -121,17 +127,21 @@ class InboxService {
             SymptomReport sr = d.getReportSummary().getSymptomReport();
             Map<String, Object> answers = support.readMap(sr.getAnswers());
             Cow cow = sr.getCow();
-            List<PhotoPart> photos = mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(sr.getId(), "photo")
+            List<PhotoPart> photos = FieldMedia.latestPerPart(
+                            mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(sr.getId(), "photo"))
                     .stream()
-                    .map(m -> new PhotoPart(m.getId(), m.getRequestedPart(), m.getPredictedPart(), m.getMatch()))
+                    .map(m -> new PhotoPart(m.getId(), m.getRequestedPart(), m.getPredictedPart(), m.getMatch(), url(m)))
                     .toList();
+            List<FieldMedia> videos = mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(sr.getId(), "video");
+            VideoPart video = videos.isEmpty() ? null : new VideoPart(videos.getLast().getId(), url(videos.getLast()),
+                    BehaviorRecord.ratio(behaviorRepository.findByMediaId(videos.getLast().getId())));
             String card = d.getReportSummary().getCardJson();
             symptom = new SymptomPart(sr.getId(),
                     cow == null ? null : new CowPart(cow.getTagLast4(), cow.getTagFull(), cow.getBreed(), cow.getSex(),
                             cow.getBirthDate()),
                     ReceiverRules.matchedSymptoms(answers),
                     sr.getMatchedCount() == null ? null : sr.getMatchedCount().intValue(), sr.getFoundAt(),
-                    sr.getBarn(), photos, card == null ? null : support.readMap(card));
+                    sr.getBarn(), photos, video, card == null ? null : support.readMap(card));
             guides = guides(ReceiverRules.disease(answers));
         }
         FarmBasics basics = new FarmBasics(latestDiary(farm, "접종"), latestDiary(farm, "소독"),
@@ -462,5 +472,11 @@ class InboxService {
         String joined = Stream.of(parts).filter(Objects::nonNull).filter(p -> !p.isBlank())
                 .collect(Collectors.joining(" · "));
         return joined.isEmpty() ? null : joined;
+    }
+
+    /** 원본 열람 서명 URL (만료 10분, REQ-OPS-07). 아직 올라오지 않은 파일은 null */
+    private String url(FieldMedia media) {
+        return FieldMedia.PENDING_PATH.equals(media.getFilePath()) ? null
+                : storage.presignGet(media.getFilePath(), StorageClient.VIEW_TTL);
     }
 }

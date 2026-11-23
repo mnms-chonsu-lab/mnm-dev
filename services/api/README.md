@@ -91,8 +91,10 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 
 | 항목 | 내용 |
 | --- | --- |
-| AI 호출 | `global/ai/AiClient`(stt·route·summary). 지금 구현은 `MockAiClient`뿐입니다. mnm-ai 내부 API 서버가 배포되면 HTTP 구현으로 바꿉니다 |
-| AI 실패 | `AiException`을 받아 대체 경로로 진행합니다. 음성 인식 실패 → `fallback=text_input`, 정리 실패 → `fallback=select_input`, 요약 실패 → 원본 기록만 |
+| AI 호출 | `global/ai/AiClient`(stt·route·summary·part-check·behavior). 지금 구현은 `MockAiClient`뿐입니다. mnm-ai 내부 API 서버가 배포되면 HTTP 구현으로 바꿉니다 |
+| AI 실패 | `AiException`을 받아 대체 경로로 진행합니다. 음성 인식 실패 → `fallback=text_input`, 정리 실패 → `fallback=select_input`, 요약 실패 → 원본 기록만, 부위 확인·행동 분류 실패 → `status=failed`(파일은 저장, 결과 칸 null) |
+| 파일 원본 | `global/storage/StorageClient`. 사진·영상은 앱이 저장소에 바로 올리고(`FARM-12` POST 양식) 서버는 주소만 만듭니다. 음성은 `FARM-03`에서 서버가 올립니다. 열람은 서명 URL(만료 10분). `STORAGE_ENDPOINT`가 없으면 `MockStorageClient` |
+| 오래 걸리는 AI | `FARM-13`·`FARM-21`은 AI 호출을 3초만 기다리고 넘으면 `status=pending`으로 답합니다. 호출은 뒤에서 끝까지 진행해 결과를 저장합니다(`MediaService`) |
 | 규칙 | `farmer/FarmerRules`: 신고 기한(토·일·공휴일 제외 5일)·귀표 30일·촬영 부위·질병별 안내 분기·신고서 빈칸. mnm-ai `rules/`와 같은 값이며, mnm-ai 서버가 `/rules/*`를 열지 않아 서버에서 계산합니다 |
 | 이력제 조회 | `farmer/TraceClient`. 지금은 `MockTraceClient`: 마지막 자리 `0` = 못 찾음, `008…` = 다른 농장, `009…` = 조회 실패 |
 | 저장하지 않는 것 | 음성 원본(MVP), 알림 생성(기한 D-3·D-1·평소와 다름 스케줄러는 MVP 제외). 처리 결과 알림은 접수자 상태 변경에서 생깁니다 |

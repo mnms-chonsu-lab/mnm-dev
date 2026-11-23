@@ -12,6 +12,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -48,4 +51,29 @@ public class BehaviorRecord {
 
     @Column(name = "model_version", length = 50)
     private String modelVersion;
+
+    public static BehaviorRecord of(FieldMedia media, Cow cow, String label, BigDecimal confidence, Instant observedAt,
+            String modelVersion) {
+        BehaviorRecord record = new BehaviorRecord();
+        record.media = media;
+        record.cow = cow;
+        record.label = label;
+        record.confidence = confidence;
+        record.observedAt = observedAt;
+        record.modelVersion = modelVersion;
+        return record;
+    }
+
+    /** 서기·눕기·먹기 비율(%, 박스 수 기준, /ai/behavior summary 와 같은 계산). 결과가 없으면 null */
+    public static Map<String, Integer> ratio(List<BehaviorRecord> records) {
+        if (records.isEmpty()) {
+            return null;
+        }
+        Map<String, Integer> ratio = new LinkedHashMap<>();
+        for (String label : List.of("stand", "lie", "eat")) {
+            long count = records.stream().filter(r -> label.equals(r.getLabel())).count();
+            ratio.put(label, (int) Math.round(count * 100.0 / records.size()));
+        }
+        return ratio;
+    }
 }

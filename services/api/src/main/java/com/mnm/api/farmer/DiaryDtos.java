@@ -31,9 +31,20 @@ final class DiaryDtos {
      * FARM-03·25 결과. 저장하지 않은 초안이다 (F-S03 "이렇게 적을까요?" 확인 후 FARM-04 로 저장).
      * report_type: 출생 | 폐사 | 양도 | 양수 | 이동 | null. report_notice 는 신고 기한 안내 (발생일을 알 때).
      * fallback: null | text_input(음성을 못 알아들음 → 글로 쓰기) | select_input(정리하지 못함 → 선택형 입력).
+     * audio_media_id: 말로 기록(FARM-03)의 음성 원본. FARM-04 저장 때 그대로 보낸다 (저장 못 했으면 null)
      */
     record RecordDraft(String rawText, String intent, List<DraftItem> items, String reportType,
-            Map<String, Object> reportFields, List<String> missing, ReportNotice reportNotice, String fallback) {
+            Map<String, Object> reportFields, List<String> missing, ReportNotice reportNotice, String fallback,
+            Long audioMediaId) {
+
+        RecordDraft(String rawText, String intent, List<DraftItem> items, String reportType,
+                Map<String, Object> reportFields, List<String> missing, ReportNotice reportNotice, String fallback) {
+            this(rawText, intent, items, reportType, reportFields, missing, reportNotice, fallback, null);
+        }
+
+        RecordDraft withAudio(Long id) {
+            return new RecordDraft(rawText, intent, items, reportType, reportFields, missing, reportNotice, fallback, id);
+        }
     }
 
     /** cow_id 는 끝 4자리로 찾은 내 소 (없으면 null) */
@@ -48,7 +59,8 @@ final class DiaryDtos {
             LocalDate date,
             @Size(max = 2000, message = "2000자까지 쓸 수 있어요.") String rawText,
             @NotEmpty(message = "저장할 기록이 없어요.") List<@Valid DiaryItemRequest> items,
-            @Valid ReportRequest report) {
+            @Valid ReportRequest report,
+            Long audioMediaId) {
     }
 
     record DiaryItemRequest(
@@ -79,8 +91,11 @@ final class DiaryDtos {
             String vaccineType, Integer headCount) {
     }
 
-    /** FARM-26 상세. deliveries: 이 기록이 함께 보내진 곳 (보낸 날부터 14일 안의 일지가 함께 간다) */
-    record DiaryEntryDetail(DiaryEntryResponse entry, String rawText, List<SentTo> deliveries) {
+    /**
+     * FARM-26 상세. deliveries: 이 기록이 함께 보내진 곳 (보낸 날부터 14일 안의 일지가 함께 간다).
+     * audio_url: 음성 원본 [듣기] 서명 URL (만료 10분). 원본이 없으면 null, 보관 기간이 지나 지워졌으면 열리지 않는다
+     */
+    record DiaryEntryDetail(DiaryEntryResponse entry, String rawText, String audioUrl, List<SentTo> deliveries) {
     }
 
     record SentTo(Long deliveryId, Instant approvedAt, String orgName, String receiverStatus) {
