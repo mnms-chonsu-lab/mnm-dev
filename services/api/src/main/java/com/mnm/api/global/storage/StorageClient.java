@@ -6,7 +6,7 @@ import java.util.Map;
 
 /**
  * Object Storage (사진·영상·음성 원본). 버킷은 비공개이고 앱·AI 서버는 서명 URL로만 읽고 쓴다 (REQ-OPS-07).
- * 경로 규칙: field/{farm_id}/{report_id}/{media_id}.{확장자}, 일지 음성은 field/{farm_id}/diary/{media_id}.{확장자} (REQ-DATA-09).
+ * 경로 규칙: field/{farm_id}/{report_id}/{media_id}.{확장자}, 일지 음성은 audio/{farm_id}/{media_id}.{확장자} (REQ-DATA-09).
  * 실패하면 {@link StorageException}을 던진다.
  */
 public interface StorageClient {

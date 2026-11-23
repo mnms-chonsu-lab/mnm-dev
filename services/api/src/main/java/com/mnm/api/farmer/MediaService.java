@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -45,8 +46,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 class MediaService {
 
-    /** 파일 1개 최대 크기 (REQ-OPS-07). shortcut: 영상도 사진과 같은 10MB. 휴대폰 고화질 영상이 넘으면 따로 정한다 (#34) */
-    static final long MAX_BYTES = 10L * 1024 * 1024;
+    /** 사진 1장 최대 크기 (REQ-OPS-07) */
+    static final long MAX_PHOTO_BYTES = 10L * 1024 * 1024;
+    /** 영상 1개 최대 크기 (제안값, #37). 앞 10초만 분석하지만 앨범 영상은 길 수 있다 */
+    static final long MAX_VIDEO_BYTES = 100L * 1024 * 1024;
+    /** 음성 원본 보관 기간. 버킷 수명 주기 규칙 audio/ 365일 삭제와 맞춘다 (F-S15D) */
+    static final int AUDIO_KEEP_DAYS = 365;
     /** 업로드 URL 만료 (제안값, 실측으로 조정) */
     static final Duration UPLOAD_TTL = Duration.ofMinutes(10);
     /** 앱이 AI 결과를 기다리는 시간. 넘으면 pending 으로 답하고 결과는 뒤에서 저장한다 (REQ-OPS-09) */
@@ -88,7 +93,7 @@ class MediaService {
         FieldMedia media = mediaRepository.save(FieldMedia.create(report, request.kind(), photo ? request.requestedPart() : null));
         String key = "field/%d/%d/%d.%s".formatted(farm.getId(), report.getId(), media.getId(), ext);
         media.placeAt(key);
-        PostUpload post = storage.presignPost(key, contentType, MAX_BYTES, UPLOAD_TTL);
+        PostUpload post = storage.presignPost(key, contentType, photo ? MAX_PHOTO_BYTES : MAX_VIDEO_BYTES, UPLOAD_TTL);
         return new UploadUrlResponse(media.getId(), post.url(), post.fields(), post.expiresAt());
     }
 
@@ -134,10 +139,10 @@ class MediaService {
         return new BehaviorResponse(mediaId, outcome.status(), outcome.value());
     }
 
-    /** 일지 음성 원본 저장 (field/{farm_id}/diary/{media_id}.{확장자}). 실패해도 기록은 계속한다 (null) */
+    /** 일지 음성 원본 저장 (audio/{farm_id}/{media_id}.{확장자}, 수명 주기 규칙을 audio/ 하나로 걸려고). 실패해도 기록은 계속한다 (null) */
     Long storeAudio(FarmInfo farm, byte[] audio, String contentType) {
         FieldMedia media = mediaRepository.save(FieldMedia.create(null, "audio", null));
-        String key = "field/%d/diary/%d.%s".formatted(farm.getId(), media.getId(),
+        String key = "audio/%d/%d.%s".formatted(farm.getId(), media.getId(),
                 AUDIO_TYPES.getOrDefault(baseType(contentType), "audio"));
         try {
             storage.put(key, audio, contentType);
@@ -154,8 +159,16 @@ class MediaService {
     /** 일지 저장(FARM-04) 때 붙일 내 음성 원본 */
     FieldMedia ownAudio(FarmInfo farm, Long mediaId) {
         return mediaRepository.findById(mediaId)
-                .filter(m -> "audio".equals(m.getKind()) && m.getFilePath().startsWith("field/" + farm.getId() + "/diary/"))
+                .filter(m -> "audio".equals(m.getKind()) && m.getFilePath().startsWith("audio/" + farm.getId() + "/"))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "음성 원본 없음"));
+    }
+
+    /**
+     * 일지 음성 [듣기] 주소 (FARM-26). 보관 기간이 지났으면 null (F-S15D).
+     * shortcut: field_media 에 수집 시각이 없어 일지 날짜로 센다 (미래 날짜는 못 넣어 업로드일 이하). 정확히 하려면 mnm-data 에 created_at 추가
+     */
+    String audioUrl(FieldMedia audio, LocalDate recordedOn) {
+        return FarmerRules.today().isBefore(recordedOn.plusDays(AUDIO_KEEP_DAYS)) ? viewUrl(audio) : null;
     }
 
     /** 열람 서명 URL (만료 10분). 아직 경로가 없으면 null */

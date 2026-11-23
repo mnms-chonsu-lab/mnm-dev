@@ -374,7 +374,7 @@ paths:
       summary: 음성 기록 → 정리 초안 (FARM-03, F-S02)
       description: |
         음성 → 문장(/ai/stt) → 정리(/ai/route). 일지는 저장하지 않는다(확인 후 FARM-04).
-        음성 원본은 저장소 field/{farm_id}/diary/{media_id}.{확장자} 에 먼저 저장하고 audio_media_id 로 준다 (FARM-04 저장 때 그대로 보냄).
+        음성 원본은 저장소 audio/{farm_id}/{media_id}.{확장자} 에 먼저 저장하고 audio_media_id 로 준다 (FARM-04 저장 때 그대로 보냄).
         원본 저장이 실패해도 기록은 계속하고 audio_media_id = null.
         음성을 못 알아들으면 200 + fallback=text_input (글로 쓰기 F-S02T). 응답 형식은 FARM-25 와 같다.
         AI 서버 배포 전에는 mock (음성 내용과 상관없이 시연 문장 S1 을 돌려준다)
@@ -467,8 +467,8 @@ paths:
       tags: [농가 앱]
       summary: 일지 기록 한 건 보기 (FARM-26, F-S15D)
       description: |
-        data = { entry, raw_text, audio_url, deliveries[] }. audio_url: 음성 원본 [듣기] 서명 URL (만료 10분, 원본이 없으면 null,
-        보관 기간이 지나 지워졌으면 열리지 않음). deliveries: 이 기록이 함께 보내진 소 상태 기록 전달
+        data = { entry, raw_text, audio_url, deliveries[] }. audio_url: 음성 원본 [듣기] 서명 URL (만료 10분, 원본이 없거나
+        기록일부터 1년(365일)이 지났으면 null → [듣기] 숨김). deliveries: 이 기록이 함께 보내진 소 상태 기록 전달
         (기록일부터 14일 안에 승인된 전달) { delivery_id, approved_at, org_name, receiver_status(new|checking|done) }
       responses:
         '200': { description: 일지 기록 }
@@ -682,7 +682,7 @@ paths:
       summary: 오늘 기록 요약 (FARM-14, F-S11 · F-S19)
       description: |
         data = { symptom_report_id, cow, matched_count, matched[], observed_text, head_count, found_date, barn,
-        related_diary[](같은 소 최근 7일), vaccine{ date, value }, photos[{ media_id, part, match, url }],
+        related_diary[](같은 소 최근 7일), vaccine{ date, value }, photos[{ media_id, part, match, url }](다시 찍은 사진은 부위별 마지막 1장),
         video{ media_id, url, ratio{ stand, lie, eat }(%, 참고, 분류 안 됨이면 null) }(마지막 영상, 없으면 null), disease, delivered(QR 표시),
         form6{6개 항목, 빈칸 null}, form6_text(인터넷 신고서 복사용, 빈칸 "(빈칸)") }
         6개 항목은 요약 규칙(/ai/summary, 지금은 mock)으로 만들고, 실패하면 form6 = null (원본 기록만 표시)
@@ -701,7 +701,7 @@ paths:
         경로 field/{farm_id}/{symptom_report_id}/{media_id}.{확장자}. 업로드 URL 만료 10분 (제안값, 실측으로 조정).
         data = { media_id, upload_url, fields{}, expires_at }
         앱은 upload_url 로 multipart/form-data POST: fields 를 모두 넣고 마지막에 file. 저장소 응답 204 = 성공.
-        10MB 를 넘으면(EntityTooLarge) · Content-Type 이 다르면 저장소가 거절한다 → UPLOAD-FAIL 문구로 [다시 올리기]
+        사진 10MB · 영상 100MB 를 넘으면(EntityTooLarge) · Content-Type 이 다르면 저장소가 거절한다 → UPLOAD-FAIL 문구로 [다시 올리기]
         올린 뒤 사진은 FARM-13, 영상은 FARM-21 을 부른다
       requestBody:
         required: true
@@ -905,7 +905,7 @@ paths:
         data = { delivery_id, kind, status, result, route, approved_at, received_at, farm, symptom, history, basics, diary[], timeline[], guides[] }
         - farm = { farm_id, farm_no, name, owner_name, address, head_count, phone_shared, phone(공개했을 때만, 아니면 null) }
         - symptom(소 상태 기록) = { symptom_report_id, cow{ tag4, tag_full, breed, sex, birth_date }, matched_symptoms[], matched_count,
-          found_at, barn, photos[{ media_id, requested_part, predicted_part, match, url }],
+          found_at, barn, photos[{ media_id, requested_part, predicted_part, match, url }](부위별 마지막 1장),
           video{ media_id, url, ratio{ stand, lie, eat } }(마지막 행동 영상, 없으면 null), card(승인 때 만든 요약 카드, 없으면 null) }
           url 은 원본 서명 URL (만료 10분, REQ-OPS-07). 올라오기 전 파일은 null
         - history(이력 신고서) = { history_report_id, type, fields, missing[], due_date, d_day, status }
@@ -1169,7 +1169,7 @@ components:
             | NF-404 | 404 | 없는 기록 · 없는 경로 |
             | METHOD-405 | 405 | 지원하지 않는 메서드 |
             | CONFLICT-409 | 409 | 이미 처리됨 · 중복 요청 |
-            | UPLOAD-FAIL | 413 | 업로드 실패 · 용량 초과 (파일 10MB) |
+            | UPLOAD-FAIL | 413 | 업로드 실패 · 용량 초과 (사진 10MB · 영상 100MB) |
             | CATTLE-NOTFOUND | 404 | 귀표 번호로 소를 못 찾음 |
             | CATTLE-OTHER-FARM | 409 | 다른 농장에 등록된 소 (농가 확인 후 다시 요청) |
             | TRACE-API-FAIL | 502 | 축산물이력제 조회 실패 (직접 입력으로 등록) |

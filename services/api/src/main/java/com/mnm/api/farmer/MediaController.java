@@ -27,7 +27,7 @@ class MediaController {
     private final MediaService mediaService;
 
     @Operation(summary = "사진·영상 업로드 URL (FARM-12)",
-            description = "field_media 를 만들고 저장소 POST 양식을 준다. 앱은 upload_url 로 fields + file 을 multipart POST (10MB 이하, 만료 10분)")
+            description = "field_media 를 만들고 저장소 POST 양식을 준다. 앱은 upload_url 로 fields + file 을 multipart POST (사진 10MB · 영상 100MB 이하, 만료 10분)")
     @PostMapping("/media/upload-url")
     @ResponseStatus(HttpStatus.CREATED)
     BaseResponse<UploadUrlResponse> uploadUrl(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody UploadUrlRequest request) {

@@ -25,7 +25,7 @@ final class MediaDtos {
 
     /**
      * 앱은 upload_url 로 multipart/form-data POST 를 보낸다. fields 를 모두 넣고 마지막에 file.
-     * 10MB 를 넘거나 Content-Type 이 다르면 저장소가 거절한다.
+     * 사진 10MB · 영상 100MB 를 넘거나 Content-Type 이 다르면 저장소가 거절한다.
      */
     record UploadUrlResponse(Long mediaId, String uploadUrl, Map<String, String> fields, Instant expiresAt) {
     }

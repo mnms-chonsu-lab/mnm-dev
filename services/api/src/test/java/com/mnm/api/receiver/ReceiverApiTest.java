@@ -186,13 +186,17 @@ class ReceiverApiTest {
                 .willReturn(List.of(fmd, lsd));
         FieldMedia photo = FieldMedia.create(null, "photo", "mouth");
         photo.placeAt("field/1/7/77.jpg");
-        given(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(anyLong(), eq("photo"))).willReturn(List.of(photo));
+        FieldMedia retaken = FieldMedia.create(null, "photo", "mouth");
+        retaken.placeAt("field/1/7/78.jpg");
+        given(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(anyLong(), eq("photo")))
+                .willReturn(List.of(photo, retaken));
 
         receiver(get("/api/receiver/inbox/40"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("new"))
                 .andExpect(jsonPath("$.data.symptom.photos[0].requested_part").value("mouth"))
-                .andExpect(jsonPath("$.data.symptom.photos[0].url").value(org.hamcrest.Matchers.endsWith("field/1/7/77.jpg")))
+                .andExpect(jsonPath("$.data.symptom.photos.length()").value(1))
+                .andExpect(jsonPath("$.data.symptom.photos[0].url").value(org.hamcrest.Matchers.endsWith("field/1/7/78.jpg")))
                 .andExpect(jsonPath("$.data.symptom.video").value(nullValue()))
                 .andExpect(jsonPath("$.data.farm.phone_shared").value(false))
                 .andExpect(jsonPath("$.data.farm.phone").value(nullValue()))

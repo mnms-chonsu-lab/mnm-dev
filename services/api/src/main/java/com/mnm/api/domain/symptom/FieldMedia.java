@@ -10,6 +10,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -69,6 +72,13 @@ public class FieldMedia {
         media.requestedPart = requestedPart;
         media.filePath = PENDING_PATH;
         return media;
+    }
+
+    /** 다시 찍은 사진은 부위별 마지막 1장만 보여 준다 (#37). photos 는 id 오름차순, 부위는 처음 찍은 순서 */
+    public static List<FieldMedia> latestPerPart(List<FieldMedia> photos) {
+        Map<String, FieldMedia> last = new LinkedHashMap<>();
+        photos.forEach(m -> last.put(m.requestedPart, m));
+        return List.copyOf(last.values());
     }
 
     public void placeAt(String path) {

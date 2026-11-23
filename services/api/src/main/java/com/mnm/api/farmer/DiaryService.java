@@ -198,7 +198,7 @@ class DiaryService {
         List<SentTo> sent = deliveryRepository.findSymptomDeliveries(farm.getId(), from, to).stream()
                 .map(this::sentTo)
                 .toList();
-        return new DiaryEntryDetail(toResponse(entry), entry.getRawText(), mediaService.viewUrl(entry.getAudioMedia()), sent);
+        return new DiaryEntryDetail(toResponse(entry), entry.getRawText(), mediaService.audioUrl(entry.getAudioMedia(), entry.getDate()), sent);
     }
 
     /** FARM-26 고치기. 서버가 자동으로 남긴 "신고" 기록은 고치지 않는다 */

@@ -128,6 +128,7 @@ class FarmerMediaApiTest {
                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.fields.key").value("field/1/7/77.mov"));
+        verify(storage).presignPost("field/1/7/77.mov", "video/quicktime", 100L * 1024 * 1024, Duration.ofMinutes(10));
 
         farmer(post("/api/farmer/media/upload-url").contentType(MediaType.APPLICATION_JSON).content("""
                 {"symptom_report_id":7,"kind":"photo","content_type":"image/jpeg"}
@@ -210,9 +211,9 @@ class FarmerMediaApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fallback").value("text_input"))
                 .andExpect(jsonPath("$.data.audio_media_id").value(77));
-        verify(storage).put(eq("field/1/diary/77.webm"), any(), eq("audio/webm;codecs=opus"));
+        verify(storage).put(eq("audio/1/77.webm"), any(), eq("audio/webm;codecs=opus"));
 
-        FieldMedia audio = media(77L, "audio", null, "field/1/diary/77.webm");
+        FieldMedia audio = media(77L, "audio", null, "audio/1/77.webm");
         given(mediaRepository.findById(77L)).willReturn(Optional.of(audio));
         given(diaryRepository.save(any())).willAnswer(i -> withId(i.getArgument(0), 60L));
         farmer(post("/api/farmer/diary").contentType(MediaType.APPLICATION_JSON).content("""
@@ -224,11 +225,30 @@ class FarmerMediaApiTest {
         assertThat(entry.getValue().getAudioMedia()).isSameAs(audio);
 
         // 다른 농장 음성은 붙이지 않는다
-        given(mediaRepository.findById(91L)).willReturn(Optional.of(media(91L, "audio", null, "field/2/diary/91.webm")));
+        given(mediaRepository.findById(91L)).willReturn(Optional.of(media(91L, "audio", null, "audio/2/91.webm")));
         farmer(post("/api/farmer/diary").contentType(MediaType.APPLICATION_JSON).content("""
                 {"items":[{"category":"소독","value":"소독함"}],"audio_media_id":91}
                 """))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 일지_음성은_기록일부터_1년이_지나면_듣기_주소를_주지_않는다() throws Exception {
+        FieldMedia audio = media(77L, "audio", null, "audio/1/77.webm");
+        DiaryEntry recent = DiaryEntry.record(farm, FarmerRules.today().minusDays(364), "소독", null, "소독함", null, null, "소독했어");
+        DiaryEntry old = DiaryEntry.record(farm, FarmerRules.today().minusDays(365), "소독", null, "소독함", null, null, "소독했어");
+        recent.attachAudio(audio);
+        old.attachAudio(audio);
+        given(diaryRepository.findByIdAndFarmId(60L, FARM_ID)).willReturn(Optional.of(withId(recent, 60L)));
+        given(diaryRepository.findByIdAndFarmId(61L, FARM_ID)).willReturn(Optional.of(withId(old, 61L)));
+
+        farmer(get("/api/farmer/diary/60"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.audio_url").value(storage.presignGet("audio/1/77.webm", StorageClient.VIEW_TTL)));
+        farmer(get("/api/farmer/diary/61"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.raw_text").value("소독했어"))
+                .andExpect(jsonPath("$.data.audio_url").doesNotExist());
     }
 
     @Test
@@ -245,15 +265,21 @@ class FarmerMediaApiTest {
     @Test
     void 오늘_기록_요약에_사진과_영상_원본_주소와_행동_비율이_있다() throws Exception {
         FieldMedia photo = media(77L, "photo", "mouth", "field/1/7/77.jpg");
+        FieldMedia hoof = media(78L, "photo", "hoof", "field/1/7/78.jpg");
+        FieldMedia retaken = media(79L, "photo", "mouth", "field/1/7/79.jpg");
         FieldMedia video = media(80L, "video", null, "field/1/7/80.mp4");
-        given(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(7L, "photo")).willReturn(List.of(photo));
+        given(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(7L, "photo")).willReturn(List.of(photo, hoof, retaken));
         given(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(7L, "video")).willReturn(List.of(video));
         given(behaviorRepository.findByMediaId(80L)).willReturn(List.of(
                 BehaviorRecord.of(video, null, "lie", null, null, "m"), BehaviorRecord.of(video, null, "eat", null, null, "m")));
 
         farmer(get("/api/farmer/symptom-reports/7/summary"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.photos[0].url").value(storage.presignGet("field/1/7/77.jpg", StorageClient.VIEW_TTL)))
+                // 다시 찍은 사진은 부위별 마지막 1장만 (#37)
+                .andExpect(jsonPath("$.data.photos.length()").value(2))
+                .andExpect(jsonPath("$.data.photos[0].media_id").value(79))
+                .andExpect(jsonPath("$.data.photos[0].url").value(storage.presignGet("field/1/7/79.jpg", StorageClient.VIEW_TTL)))
+                .andExpect(jsonPath("$.data.photos[1].media_id").value(78))
                 .andExpect(jsonPath("$.data.video.media_id").value(80))
                 .andExpect(jsonPath("$.data.video.url").exists())
                 .andExpect(jsonPath("$.data.video.ratio.lie").value(50))

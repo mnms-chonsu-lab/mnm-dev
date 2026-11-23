@@ -121,7 +121,7 @@ class SymptomService {
         LocalDate found = foundDate(report, stored);
         Cow cow = report.getCow();
         List<DiaryEntryResponse> diary = diary(farm, found);
-        List<FieldMedia> photos = mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo");
+        List<FieldMedia> photos = FieldMedia.latestPerPart(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo"));
 
         Map<String, Object> form6 = null;
         String form6Text = null;
@@ -168,7 +168,7 @@ class SymptomService {
         Map<String, Object> stored = support.readMap(report.getAnswers());
         LocalDate found = foundDate(report, stored);
         return summaryRequest(farm, report, stored, diary(farm, found),
-                mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo"));
+                FieldMedia.latestPerPart(mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(report.getId(), "photo")));
     }
 
     SymptomReport find(FarmInfo farm, Long reportId) {

@@ -127,7 +127,8 @@ class InboxService {
             SymptomReport sr = d.getReportSummary().getSymptomReport();
             Map<String, Object> answers = support.readMap(sr.getAnswers());
             Cow cow = sr.getCow();
-            List<PhotoPart> photos = mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(sr.getId(), "photo")
+            List<PhotoPart> photos = FieldMedia.latestPerPart(
+                            mediaRepository.findBySymptomReportIdAndKindOrderByIdAsc(sr.getId(), "photo"))
                     .stream()
                     .map(m -> new PhotoPart(m.getId(), m.getRequestedPart(), m.getPredictedPart(), m.getMatch(), url(m)))
                     .toList();
