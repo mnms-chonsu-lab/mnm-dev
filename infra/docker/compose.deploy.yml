@@ -21,8 +21,25 @@ services:
       - ./nginx:/etc/nginx/mnm:ro
       - letsencrypt:/etc/letsencrypt
       - certbot-www:/var/www/certbot
+      - nginx-logs:/var/log/nginx/mnm   # 감시 프로그램이 읽는 로그 파일 (common.conf)
     depends_on:
       - api
+    restart: unless-stopped
+
+  # 감시·알람 (REQ-OPS-06). 1분마다 API·AI 상태, 5xx 비율, AI 오류율을 보고 기준을 넘으면 웹훅으로 보낸다
+  # 웹훅이 비어 있으면 로그에만 남는다: docker compose logs monitor
+  monitor:
+    image: python:3.12-alpine
+    command: ["python", "-u", "/app/monitor.py"]
+    environment:   # .env 전체를 넘기지 않고 필요한 값만
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_WEBHOOK_FORMAT: ${ALERT_WEBHOOK_FORMAT:-discord}
+    volumes:
+      - ./monitor:/app:ro
+      - nginx-logs:/logs
+    mem_limit: 64m
+    depends_on:
+      - nginx
     restart: unless-stopped
 
   # 인증서 발급·갱신 때만 실행: docker compose run --rm certbot ...
@@ -36,3 +53,4 @@ services:
 volumes:
   letsencrypt:
   certbot-www:
+  nginx-logs:
