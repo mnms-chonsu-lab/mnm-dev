@@ -106,12 +106,12 @@ class InboxService {
         return new InboxResponse(counts(org), outbreak(org), page);
     }
 
-    /** RCV-02 한 장 요약. 열면 바로 감사 기록을 남긴다 (그래서 쓰기 트랜잭션) */
+    /** RCV-02 한 장 요약. 열면 바로 감사 기록을 남긴다 (그래서 쓰기 트랜잭션, 동시 열람 중복을 막으려 행을 잠금) */
     @Transactional
     InboxDetail detail(Long userId, Long deliveryId) {
         User me = support.receiver(userId);
-        Delivery d = find(deliveryId, me.getOrg());
-        support.audit(me, "view", "delivery", d.getId());
+        Delivery d = findForUpdate(deliveryId, me.getOrg());
+        support.auditView(me, "delivery", d.getId());
         ReceiverCheck check = checkRepository.findFirstByDeliveryIdOrderByIdDesc(d.getId()).orElse(null);
         FarmInfo farm = farmOf(d);
         User owner = farm.getOwner();
@@ -219,7 +219,7 @@ class InboxService {
         if (d.getReportSummary() == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "이력 신고서에는 6개 항목이 없음");
         }
-        support.audit(me, "view", "form6", d.getId());
+        support.auditView(me, "form6", d.getId());
         ReportSummary summary = d.getReportSummary();
         Map<String, Object> form6 = summary.getForm6Json() == null ? fallbackForm6(summary.getSymptomReport())
                 : support.readMap(summary.getForm6Json());

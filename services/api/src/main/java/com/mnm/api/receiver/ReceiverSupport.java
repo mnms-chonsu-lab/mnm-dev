@@ -10,6 +10,8 @@ import com.mnm.api.global.error.ErrorCode;
 import com.mnm.api.global.response.PageResponse;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +34,8 @@ import tools.jackson.databind.ObjectMapper;
 class ReceiverSupport {
 
     static final int PAGE_SIZE = 20;
+    /** 같은 접수자가 같은 대상을 이 시간 안에 다시 열면 열람 1회로 본다 (제안값, 실측으로 조정) */
+    static final Duration VIEW_DEDUP = Duration.ofMinutes(1);
 
     private final ReceiverUserRepository userRepository;
     private final ReceiverAuditRepository auditRepository;
@@ -80,6 +84,17 @@ class ReceiverSupport {
     /** 접수자의 열람·변경을 감사 기록에 남긴다 (COM-07). 서비스의 트랜잭션 안에서 부른다 */
     void audit(User user, String action, String targetType, Long targetId) {
         auditRepository.save(AuditLog.of(user, action, targetType, targetId, clientIp()));
+    }
+
+    /**
+     * 열람 감사 기록. 화면이 같은 상세를 여러 번 불러도(옆 상세 + 팝업, 화면 이동) 1분 안의 열람은 1건만 남긴다.
+     * 동시에 온 요청끼리는 호출하는 쪽이 대상 행을 잠가서 순서대로 확인하게 한다
+     */
+    void auditView(User user, String targetType, Long targetId) {
+        if (!auditRepository.existsByUserIdAndActionAndTargetTypeAndTargetIdAndAtAfter(user.getId(), "view",
+                targetType, targetId, Instant.now().minus(VIEW_DEDUP))) {
+            audit(user, "view", targetType, targetId);
+        }
     }
 
     Map<String, Object> readMap(String json) {
