@@ -166,7 +166,7 @@ class ReceiverApiTest {
     void 다른_기관에_간_기록은_관할_밖_AUTH_403() throws Exception {
         Delivery d = symptomDelivery(40L, true, "{}");
         ReflectionTestUtils.setField(d, "org", otherOrg);
-        given(deliveryRepository.findById(40L)).willReturn(Optional.of(d));
+        given(deliveryRepository.findForUpdate(40L)).willReturn(Optional.of(d));
 
         receiver(get("/api/receiver/inbox/40"))
                 .andExpect(status().isForbidden())
@@ -177,7 +177,7 @@ class ReceiverApiTest {
     @Test
     void 한_장_요약은_열람_감사_기록을_남기고_연락처는_공개했을_때만_준다() throws Exception {
         Delivery d = symptomDelivery(40L, false, "{\"drool\":\"yes\",\"feed\":\"yes\",\"lump\":\"no\"}");
-        given(deliveryRepository.findById(40L)).willReturn(Optional.of(d));
+        given(deliveryRepository.findForUpdate(40L)).willReturn(Optional.of(d));
         BiosecurityRule fmd = entity(BiosecurityRule.class, Map.of("id", 1L, "kind", "summary", "disease", "구제역",
                 "sourceDoc", "구제역 긴급행동지침(SOP)", "text", "의심축 발견 시 즉시 신고", "status", "published"));
         BiosecurityRule lsd = entity(BiosecurityRule.class, Map.of("id", 2L, "kind", "summary", "disease", "럼피스킨",
@@ -205,6 +205,18 @@ class ReceiverApiTest {
                 .andExpect(jsonPath("$.data.guides.length()").value(1))
                 .andExpect(jsonPath("$.data.guides[0].source_doc").value("구제역 긴급행동지침(SOP)"));
         verify(auditRepository).save(argThat((AuditLog a) -> "view".equals(a.getAction()) && a.getTargetId() == 40L));
+    }
+
+    @Test
+    void 일분_안에_같은_기록을_다시_열면_열람_감사_기록을_더_남기지_않는다() throws Exception {
+        Delivery d = symptomDelivery(40L, true, "{}");
+        given(deliveryRepository.findForUpdate(40L)).willReturn(Optional.of(d));
+        given(auditRepository.existsByUserIdAndActionAndTargetTypeAndTargetIdAndAtAfter(eq(receiver.getId()),
+                eq("view"), eq("delivery"), eq(40L), any())).willReturn(true);
+
+        receiver(get("/api/receiver/inbox/40")).andExpect(status().isOk());
+        verify(auditRepository, never()).save(any());
+        verify(deliveryRepository, never()).findById(40L);
     }
 
     @Test
