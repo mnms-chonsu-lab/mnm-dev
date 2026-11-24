@@ -109,6 +109,19 @@ public class Cow {
         this.status = "active";
     }
 
+    /** 이력제에서 다시 불러온 값으로 바꾼다 (F-P05). 축사·목록 상태는 그대로 */
+    public void refreshFromTrace(String breed, String sex, LocalDate birthDate, LocalDate vaccineLastDate,
+            Integer vaccineLastOrder, String traceFarmNo, Instant traceCheckedAt) {
+        this.breed = breed;
+        this.sex = sex;
+        this.birthDate = birthDate;
+        this.vaccineLastDate = vaccineLastDate;
+        this.vaccineLastOrder = vaccineLastOrder;
+        this.source = "trace";
+        this.traceFarmNo = traceFarmNo;
+        this.traceCheckedAt = traceCheckedAt;
+    }
+
     public void changeBarn(String barn) {
         this.barn = barn;
     }

@@ -52,7 +52,9 @@ class CowController {
         return BaseResponse.of(cowService.register(FarmerSupport.userId(jwt), request));
     }
 
-    @Operation(summary = "축사 수정 · 목록에서 빼기 (FARM-24)", description = "create_report 면 폐사·양도 신고서 초안을 함께 만든다")
+    @Operation(summary = "축사 수정 · 목록에서 빼기 · 이력제 다시 불러오기 (FARM-24)",
+            description = "create_report 면 폐사·양도 신고서 초안을 함께 만든다. refresh_trace 면 이력제 값으로 다시 채운다 "
+                    + "(못 찾음 CATTLE-NOTFOUND · 조회 실패 TRACE-API-FAIL · 다른 농장 CATTLE-OTHER-FARM)")
     @PatchMapping("/cows/{id}")
     BaseResponse<CowUpdateResponse> update(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
             @Valid @RequestBody CowUpdateRequest request) {
