@@ -1,6 +1,7 @@
 package com.mnm.api.receiver;
 
 import com.mnm.api.domain.guide.BiosecurityRule;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -8,4 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 interface ReceiverRuleRepository extends JpaRepository<BiosecurityRule, Long> {
 
     List<BiosecurityRule> findByKindAndStatusOrderByDisplayOrderAscIdAsc(String kind, String status);
+
+    List<BiosecurityRule> findByKindInAndStatusOrderByDisplayOrderAscIdAsc(Collection<String> kinds, String status);
 }

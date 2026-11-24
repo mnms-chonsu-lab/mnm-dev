@@ -10,6 +10,7 @@ import com.mnm.api.receiver.InfoDtos.GuideItem;
 import com.mnm.api.receiver.InfoDtos.WeeklyStats;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 class InfoService {
 
     static final int WEEK_DAYS = 7;
+    /** 농가 앱에 나가는 문구 종류 (요약 · 증상 질문 · 촬영 안내 · 할 일 · 신고서 항목). RAG 검색용 조항 본문(clause)은 뺀다 */
+    static final List<String> GUIDE_KINDS = List.of("summary", "question", "photo_guide", "action", "form_field");
 
     private final ReceiverSupport support;
     private final ReceiverRuleRepository ruleRepository;
@@ -32,12 +35,15 @@ class InfoService {
     private final ReceiverCheckRepository checkRepository;
     private final ReceiverMediaRepository mediaRepository;
 
-    /** RCV-08 게시된 지침 요약을 문서별로 묶는다 (표시 순서 유지) */
+    /** RCV-08 농가 앱 문구의 출처인 게시된 지침을 문서별로 묶는다 (문서 안에서는 종류 → 표시 순서) */
     @Transactional(readOnly = true)
     List<GuideDoc> guides(Long userId) {
         support.receiver(userId);
         Map<String, List<BiosecurityRule>> byDoc = new LinkedHashMap<>();
-        for (BiosecurityRule r : ruleRepository.findByKindAndStatusOrderByDisplayOrderAscIdAsc("summary", "published")) {
+        List<BiosecurityRule> published = new ArrayList<>(
+                ruleRepository.findByKindInAndStatusOrderByDisplayOrderAscIdAsc(GUIDE_KINDS, "published"));
+        published.sort(Comparator.comparingInt(r -> GUIDE_KINDS.indexOf(r.getKind())));
+        for (BiosecurityRule r : published) {
             byDoc.computeIfAbsent(r.getSourceDoc(), k -> new ArrayList<>()).add(r);
         }
         List<GuideDoc> docs = new ArrayList<>();

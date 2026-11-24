@@ -1136,9 +1136,10 @@ paths:
   /api/receiver/guides:
     get:
       tags: [접수자 웹]
-      summary: 게시된 지침 요약 (RCV-08, R-S04)
+      summary: 농가 앱 문구의 출처 지침 (RCV-08, R-S04)
       description: |
-        어드민에서 게시한 요약(biosecurity_rule kind=summary, published)만 문서별로 묶는다.
+        어드민에서 게시한(published) 문구 중 농가 앱에 나가는 종류(summary · question · photo_guide · action · form_field)를 문서별로 묶는다.
+        RAG 검색용 조항 본문(clause)은 뺀다. 문서 안 순서는 종류(위 순서) → display_order → rule_id.
         data = [{ source_doc, disease, revised_at(가장 최근 개정일), items[{ rule_id, text, clause }] }]
       responses:
         '200': { description: 지침 목록 }
