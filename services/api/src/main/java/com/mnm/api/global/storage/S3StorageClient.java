@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -33,6 +34,9 @@ public class S3StorageClient implements StorageClient {
 
     private static final String ALGORITHM = "AWS4-HMAC-SHA256";
     private static final DateTimeFormatter AMZ_DATE = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
+            .withZone(ZoneOffset.UTC);
+    // 스토리지는 초 아래 9자리 expiration 을 400(MalformedPOSTRequest)으로 거절한다. AWS 문서 예시 형식만 쓴다
+    private static final DateTimeFormatter POLICY_EXPIRATION = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
             .withZone(ZoneOffset.UTC);
     private static final Duration SERVER_TTL = Duration.ofMinutes(1);
 
@@ -59,7 +63,7 @@ public class S3StorageClient implements StorageClient {
     @Override
     public PostUpload presignPost(String key, String contentType, long maxBytes, Duration ttl) {
         Instant now = clock.instant();
-        Instant expires = now.plus(ttl);
+        Instant expires = now.plus(ttl).truncatedTo(ChronoUnit.SECONDS);
         String amzDate = AMZ_DATE.format(now);
         String credential = accessKey + "/" + scope(amzDate);
         List<Object> conditions = List.of(
@@ -71,7 +75,7 @@ public class S3StorageClient implements StorageClient {
                 Map.of("x-amz-credential", credential),
                 Map.of("x-amz-date", amzDate));
         Map<String, Object> policy = new LinkedHashMap<>();
-        policy.put("expiration", DateTimeFormatter.ISO_INSTANT.format(expires));
+        policy.put("expiration", POLICY_EXPIRATION.format(expires));
         policy.put("conditions", conditions);
         String encoded = Base64.getEncoder().encodeToString(
                 objectMapper.writeValueAsString(policy).getBytes(StandardCharsets.UTF_8));
