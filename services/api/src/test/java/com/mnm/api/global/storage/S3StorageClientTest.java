@@ -50,7 +50,17 @@ class S3StorageClientTest {
         assertThat(post.fields()).containsEntry("key", "field/1/7/77.jpg").containsEntry("Content-Type", "image/jpeg")
                 .containsKeys("policy", "x-amz-signature", "x-amz-credential", "x-amz-date");
         String policy = new String(Base64.getDecoder().decode(post.fields().get("policy")), StandardCharsets.UTF_8);
-        assertThat(policy).contains("\"expiration\":\"2013-05-24T00:10:00Z\"", "[\"content-length-range\",1,10]",
+        assertThat(policy).contains("\"expiration\":\"2013-05-24T00:10:00.000Z\"", "[\"content-length-range\",1,10]",
                 "[\"eq\",\"$key\",\"field/1/7/77.jpg\"]", "{\"bucket\":\"examplebucket\"}");
+    }
+
+    @Test
+    void 업로드_정책_만료시각은_초_아래를_자르고_밀리초_3자리_형식이다() {
+        S3StorageClient nanoClock = new S3StorageClient("https://kr.object.ncloudstorage.com", "kr-standard", "b",
+                "AK", "SK", json, Clock.fixed(Instant.parse("2026-11-24T11:03:49.839016831Z"), ZoneOffset.UTC));
+        StorageClient.PostUpload post = nanoClock.presignPost("k.jpg", "image/jpeg", 10, Duration.ofMinutes(10));
+        String policy = new String(Base64.getDecoder().decode(post.fields().get("policy")), StandardCharsets.UTF_8);
+        assertThat(policy).contains("\"expiration\":\"2026-11-24T11:13:49.000Z\"");
+        assertThat(post.expiresAt()).isEqualTo(Instant.parse("2026-11-24T11:13:49Z"));
     }
 }
