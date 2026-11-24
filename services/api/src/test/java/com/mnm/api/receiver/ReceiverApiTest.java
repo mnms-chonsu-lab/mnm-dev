@@ -1,5 +1,6 @@
 package com.mnm.api.receiver;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -409,22 +410,31 @@ class ReceiverApiTest {
     }
 
     @Test
-    void 공식_지침은_게시된_요약을_문서별로_묶는다() throws Exception {
-        BiosecurityRule a = entity(BiosecurityRule.class, Map.of("id", 1L, "kind", "summary", "disease", "구제역",
-                "sourceDoc", "구제역 SOP", "text", "의심증상: 침 흘림", "revisedAt", LocalDate.of(2026, 5, 6)));
-        BiosecurityRule b = entity(BiosecurityRule.class, Map.of("id", 2L, "kind", "summary", "disease", "구제역",
-                "sourceDoc", "구제역 SOP", "text", "의심축 발견 시 즉시 신고"));
-        BiosecurityRule c = entity(BiosecurityRule.class, Map.of("id", 3L, "kind", "summary",
+    void 공식_지침은_농가_앱_문구_종류를_모두_문서별로_묶는다() throws Exception {
+        BiosecurityRule act = entity(BiosecurityRule.class, Map.of("id", 9L, "kind", "action", "disease", "FMD",
+                "sourceDoc", "구제역 SOP", "text", "외부인 출입을 막아 주세요", "displayOrder", 1));
+        BiosecurityRule a = entity(BiosecurityRule.class, Map.of("id", 1L, "kind", "summary", "disease", "FMD",
+                "sourceDoc", "구제역 SOP", "text", "의심증상: 침 흘림", "revisedAt", LocalDate.of(2026, 5, 6),
+                "displayOrder", 2));
+        BiosecurityRule lsd = entity(BiosecurityRule.class, Map.of("id", 30L, "kind", "question", "disease", "LSD",
+                "sourceDoc", "럼피스킨 SOP", "text", "피부에 혹이 있나요?", "displayOrder", 1));
+        BiosecurityRule law = entity(BiosecurityRule.class, Map.of("id", 3L, "kind", "form_field",
                 "sourceDoc", "가축전염병 예방법", "text", "제11조", "clause", "제11조"));
-        given(ruleRepository.findByKindAndStatusOrderByDisplayOrderAscIdAsc("summary", "published"))
-                .willReturn(List.of(a, b, c));
+        given(ruleRepository.findByKindInAndStatusOrderByDisplayOrderAscIdAsc(InfoService.GUIDE_KINDS, "published"))
+                .willReturn(List.of(act, lsd, a, law));
 
         receiver(get("/api/receiver/guides"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data[0].source_doc").value("구제역 SOP"))
                 .andExpect(jsonPath("$.data[0].revised_at").value("2026-05-06"))
                 .andExpect(jsonPath("$.data[0].items.length()").value(2))
-                .andExpect(jsonPath("$.data[1].items[0].clause").value("제11조"));
+                .andExpect(jsonPath("$.data[0].items[0].rule_id").value(1))
+                .andExpect(jsonPath("$.data[0].items[1].rule_id").value(9))
+                .andExpect(jsonPath("$.data[1].source_doc").value("럼피스킨 SOP"))
+                .andExpect(jsonPath("$.data[1].disease").value("LSD"))
+                .andExpect(jsonPath("$.data[2].items[0].clause").value("제11조"));
+        assertThat(InfoService.GUIDE_KINDS).doesNotContain("clause");
     }
 
     @Test
