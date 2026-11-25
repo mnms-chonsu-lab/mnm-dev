@@ -105,12 +105,15 @@ class CowService {
         return toResponse(cowRepository.save(cow));
     }
 
-    /** FARM-24 축사 수정 · 목록에서 빼기 (+ 신고서 초안) */
+    /** FARM-24 축사 수정 · 목록에서 빼기 (+ 신고서 초안) · 이력제 다시 불러오기 */
     @Transactional
     CowUpdateResponse update(Long userId, Long cowId, CowUpdateRequest request) {
         FarmInfo farm = support.farm(userId);
         Cow cow = cowRepository.findByIdAndFarmId(cowId, farm.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CATTLE_NOT_FOUND, "내 농장 소 아님"));
+        if (request.traceRefreshRequested()) {
+            refreshTrace(farm, cow);
+        }
         if (request.barn() != null) {
             cow.changeBarn(blankToNull(request.barn()));
         }
@@ -132,6 +135,19 @@ class CowService {
             }
         }
         return new CowUpdateResponse(toResponse(cow), reportId);
+    }
+
+    /** 귀표로 이력제를 다시 조회해 그 값으로 바꾼다. 못 찾음·조회 실패·다른 농장 소면 오류를 내고 값은 그대로 둔다 */
+    private void refreshTrace(FarmInfo farm, Cow cow) {
+        if (cow.getTagFull() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "귀표에 적힌 12자리 숫자가 없는 소예요.", "귀표 없음");
+        }
+        TraceResult trace = found(traceClient.lookup(cow.getTagFull()));
+        if (isOtherFarm(trace, farm)) {
+            throw new BusinessException(ErrorCode.CATTLE_OTHER_FARM, "이력제 농장식별번호가 다름");
+        }
+        cow.refreshFromTrace(trace.breed(), trace.sex(), trace.birthDate(), trace.vaccineLastDate(),
+                trace.vaccineLastOrder(), trace.farmNo(), Instant.now());
     }
 
     private static TraceResult found(TraceResult trace) {

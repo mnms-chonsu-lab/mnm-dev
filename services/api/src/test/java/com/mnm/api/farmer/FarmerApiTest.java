@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -358,6 +359,48 @@ class FarmerApiTest {
                 .andExpect(jsonPath("$.data.source").value("manual"))
                 .andExpect(jsonPath("$.data.tag_last4").value("6780"))
                 .andExpect(jsonPath("$.data.birth_date").value("2024-01-01"));
+    }
+
+    @Test
+    void 직접_입력한_소를_이력제에서_다시_불러오면_이력제_값으로_바뀌고_축사는_그대로() throws Exception {
+        Cow manual = manualCow(8L, "002123456781");
+        farmer(patch("/api/farmer/cows/8").contentType(MediaType.APPLICATION_JSON).content("{\"refresh_trace\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cow.source").value("trace"))
+                .andExpect(jsonPath("$.data.cow.breed").value("한우"))
+                .andExpect(jsonPath("$.data.cow.birth_date").value("2022-09-17"))
+                .andExpect(jsonPath("$.data.cow.vaccine_last_order").value(7))
+                .andExpect(jsonPath("$.data.cow.barn").value("3번 축사"))
+                .andExpect(jsonPath("$.data.cow.trace_checked_at").exists())
+                .andExpect(jsonPath("$.data.cow.status").value("active"));
+    }
+
+    @Test
+    void 이력제_다시_불러오기가_안_되면_오류_코드를_주고_값은_그대로() throws Exception {
+        Cow notFound = manualCow(8L, "002123456780");
+        farmer(patch("/api/farmer/cows/8").contentType(MediaType.APPLICATION_JSON).content("{\"refresh_trace\":true}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CATTLE-NOTFOUND"));
+        org.assertj.core.api.Assertions.assertThat(notFound.getSource()).isEqualTo("manual");
+
+        manualCow(8L, "009123456781");
+        farmer(patch("/api/farmer/cows/8").contentType(MediaType.APPLICATION_JSON).content("{\"refresh_trace\":true}"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("TRACE-API-FAIL"));
+
+        Cow other = manualCow(8L, "008123456781");
+        farmer(patch("/api/farmer/cows/8").contentType(MediaType.APPLICATION_JSON).content("{\"refresh_trace\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CATTLE-OTHER-FARM"));
+        org.assertj.core.api.Assertions.assertThat(other.getBreed()).isNull();
+    }
+
+    /** 직접 입력으로 등록한 소 (연·월만 넣어 1일로 저장됨) */
+    private Cow manualCow(Long id, String tagFull) {
+        Cow cow = entity(Cow.class, Map.of("id", id, "farm", farm, "tagLast4", tagFull.substring(8), "tagFull", tagFull,
+                "sex", "수", "birthDate", LocalDate.of(2024, 3, 1), "barn", "3번 축사", "status", "active", "source", "manual"));
+        given(cowRepository.findByIdAndFarmId(id, FARM_ID)).willReturn(Optional.of(cow));
+        return cow;
     }
 
     @Test

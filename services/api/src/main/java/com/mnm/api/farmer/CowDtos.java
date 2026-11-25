@@ -42,16 +42,22 @@ final class CowDtos {
     }
 
     /**
-     * FARM-24 축사 수정 · 목록에서 빼기. barn 은 보낼 때만 바꾼다(빈 문자열 = 지움).
-     * remove_reason(팔림 · 폐사 · 기타)을 보내면 목록에서 뺀다. create_report 면 폐사 → 폐사 신고서, 팔림 → 양도 신고서 초안
+     * FARM-24 축사 수정 · 목록에서 빼기 · 이력제 다시 불러오기. barn 은 보낼 때만 바꾼다(빈 문자열 = 지움).
+     * remove_reason(팔림 · 폐사 · 기타)을 보내면 목록에서 뺀다. create_report 면 폐사 → 폐사 신고서, 팔림 → 양도 신고서 초안.
+     * refresh_trace 면 귀표로 이력제를 다시 조회해 그 값으로 바꾼다 (직접 입력한 소, F-P05)
      */
     record CowUpdateRequest(
             @Size(max = 50, message = "50자까지 쓸 수 있어요.") String barn,
             @Pattern(regexp = "팔림|폐사|기타", message = "빼는 이유를 골라 주세요.") String removeReason,
-            Boolean createReport) {
+            Boolean createReport,
+            Boolean refreshTrace) {
 
         boolean reportRequested() {
             return Boolean.TRUE.equals(createReport);
+        }
+
+        boolean traceRefreshRequested() {
+            return Boolean.TRUE.equals(refreshTrace);
         }
     }
 
