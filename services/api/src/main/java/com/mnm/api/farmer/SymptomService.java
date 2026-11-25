@@ -17,6 +17,8 @@ import com.mnm.api.farmer.SymptomDtos.SymptomReportRequest;
 import com.mnm.api.farmer.SymptomDtos.SymptomReportResponse;
 import com.mnm.api.farmer.SymptomDtos.SymptomSummaryResponse;
 import com.mnm.api.global.ai.AiClient;
+import com.mnm.api.global.ai.AiClient.GuideCitation;
+import com.mnm.api.global.ai.AiClient.GuideResult;
 import com.mnm.api.global.ai.AiClient.SummaryDiary;
 import com.mnm.api.global.ai.AiClient.SummaryPhoto;
 import com.mnm.api.global.ai.AiClient.SummaryRequest;
@@ -145,10 +147,17 @@ class SymptomService {
                 form6, form6Text);
     }
 
-    /** FARM-16 질병별 지금 할 일. 게시된 조치 문구 원문만, 단계는 신고 직후(after_report) 우선 */
-    @Transactional(readOnly = true)
+    /**
+     * FARM-16 질병별 지금 할 일. 게시된 조치 문구 원문만, 단계는 신고 직후(after_report) 우선.
+     * AI(/ai/guide)가 근거 조항을 고르고, 실패하거나 근거가 없으면 DB 에 게시된 문구로 고른다.
+     * AI 동안 DB 트랜잭션을 잡지 않으려고 @Transactional 을 붙이지 않는다
+     */
     ActionsResponse actions(String disease) {
         String code = disease.toUpperCase();
+        List<GuideText> picked = aiActions(code);
+        if (!picked.isEmpty()) {
+            return new ActionsResponse(code, picked.getFirst().sourceDoc(), picked);
+        }
         String name = DISEASE_NAMES.get(code);
         List<BiosecurityRule> rules = ruleRepository.findByKindAndStatusOrderByDisplayOrderAscIdAsc("action", PUBLISHED)
                 .stream()
@@ -161,6 +170,32 @@ class SymptomService {
                 .map(r -> new GuideText(r.getId(), r.getText(), r.getSourceDoc(), r.getClause(), r.getRevisedAt()))
                 .toList();
         return new ActionsResponse(code, actions.isEmpty() ? null : actions.getFirst().sourceDoc(), actions);
+    }
+
+    /** AI-INT-09 신고 직후 조항. 실패·근거 없음(RAG-NONE)이면 빈 목록 */
+    private List<GuideText> aiActions(String code) {
+        GuideResult r;
+        try {
+            r = aiClient.guide(code, "after_report", null);
+        } catch (AiException e) {
+            log.warn("방역 안내 조항 찾기 실패, 게시된 문구로 안내: {}", e.getMessage());
+            return List.of();
+        }
+        List<GuideText> actions = new ArrayList<>();
+        for (int i = 0; i < r.texts().size() && actions.size() < MAX_ACTIONS; i++) {
+            GuideCitation c = i < r.citations().size() ? r.citations().get(i) : null;
+            actions.add(new GuideText(ruleId(r.ruleIds(), i), r.texts().get(i), c == null ? null : c.doc(),
+                    c == null ? null : c.clause(), c == null ? null : c.revisedAt()));
+        }
+        return actions;
+    }
+
+    private static Long ruleId(List<String> ids, int i) {
+        try {
+            return i < ids.size() ? Long.valueOf(ids.get(i)) : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** 전달(FARM-15)과 요약(FARM-14)이 같은 입력으로 /ai/summary 를 부른다 */

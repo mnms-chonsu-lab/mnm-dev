@@ -91,8 +91,8 @@ Java Spring Boot 백엔드. `mnm-data/migrations`가 정의한 스키마를 그�
 
 | 항목 | 내용 |
 | --- | --- |
-| AI 호출 | `global/ai/AiClient`(stt·route·summary·part-check·behavior). 지금 구현은 `MockAiClient`뿐입니다. mnm-ai 내부 API 서버가 배포되면 HTTP 구현으로 바꿉니다 |
-| AI 실패 | `AiException`을 받아 대체 경로로 진행합니다. 음성 인식 실패 → `fallback=text_input`, 정리 실패 → `fallback=select_input`, 요약 실패 → 원본 기록만, 부위 확인·행동 분류 실패 → `status=failed`(파일은 저장, 결과 칸 null) |
+| AI 호출 | `global/ai/AiClient`(stt·route·summary·part-check·behavior·guide). `AI_BASE_URL`이 있으면 `HttpAiClient`(mnm-ai 내부 API, `X-Internal-Token`), 없으면 `MockAiClient`. 재시도는 `docs/api/ai-internal.yaml`의 엔드포인트별 규칙 |
+| AI 실패 | `AiException`을 받아 대체 경로로 진행합니다. 음성 인식 실패 → `fallback=text_input`, 정리 실패 → `fallback=select_input`, 요약 실패 → 원본 기록만, 부위 확인·행동 분류 실패 → `status=failed`(파일은 저장, 결과 칸 null), 방역 안내 실패·근거 없음 → DB에 게시된 문구(`FARM-16`) |
 | 파일 원본 | `global/storage/StorageClient`. 사진·영상은 앱이 저장소에 바로 올리고(`FARM-12` POST 양식) 서버는 주소만 만듭니다. 음성은 `FARM-03`에서 서버가 올립니다. 열람은 서명 URL(만료 10분). `STORAGE_ENDPOINT`가 없으면 `MockStorageClient` |
 | 오래 걸리는 AI | `FARM-13`·`FARM-21`은 AI 호출을 3초만 기다리고 넘으면 `status=pending`으로 답합니다. 호출은 뒤에서 끝까지 진행해 결과를 저장합니다(`MediaService`) |
 | 규칙 | `farmer/FarmerRules`: 신고 기한(토·일·공휴일 제외 5일)·귀표 30일·촬영 부위·질병별 안내 분기·신고서 빈칸. mnm-ai `rules/`와 같은 값이며, mnm-ai 서버가 `/rules/*`를 열지 않아 서버에서 계산합니다 |
