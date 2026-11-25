@@ -33,3 +33,7 @@ build/
 .DS_Store
 .idea/
 .vscode/
+
+# 파이썬 실행 때 생기는 임시 파일 (infra/docker/monitor 등)
+__pycache__/
+*.pyc
