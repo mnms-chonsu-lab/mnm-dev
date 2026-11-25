@@ -23,12 +23,17 @@ if [ "$1" = "--dry-run" ]; then
 else
   SEED=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
   [ -f "$SEED" ] || { echo "시드 파일이 없어요: $1" >&2; exit 2; }
-  MODE=run; SEED_MOUNT="-v $SEED:/seed/seed.sql:ro"
+  # 시드 파일 맨 앞뒤의 BEGIN; / COMMIT; 줄만 뺀다. 지우기와 시드를 한 트랜잭션(-1)으로 묶기 위해서
+  # (mnm-dev Flyway 사본과 같은 방식. DO 블록 안의 BEGIN 은 ; 가 없어서 남는다)
+  SEED_DIR=$(mktemp -d)
+  sed -E '/^[[:space:]]*(BEGIN|COMMIT)[[:space:]]*;[[:space:]]*$/d' "$SEED" > "$SEED_DIR/seed.sql"
+  chmod 755 "$SEED_DIR"; chmod 644 "$SEED_DIR/seed.sql"
+  MODE=run; SEED_MOUNT="-v $SEED_DIR/seed.sql:/seed/seed.sql:ro"
 fi
 
 # 비밀번호는 권한 600 임시 파일로만 넘긴다. 명령줄(-e PGPASSWORD=값)에 넣으면 sudo 기록(auth.log)에 남는다
-ENV_FILE=$(mktemp); chmod 600 "$ENV_FILE"; trap 'rm -f "$ENV_FILE"' EXIT INT TERM
-printf '%s 비밀번호: ' "$DB_USER"; stty -echo; read -r pw; stty echo; echo
+ENV_FILE=$(mktemp); chmod 600 "$ENV_FILE"; trap 'rm -f "$ENV_FILE"; [ -n "${SEED_DIR:-}" ] && rm -rf "$SEED_DIR"' EXIT INT TERM
+printf '%s 비밀번호: ' "$DB_USER"; stty -echo 2>/dev/null || true; read -r pw; stty echo 2>/dev/null || true; echo
 printf 'PGPASSWORD=%s\n' "$pw" > "$ENV_FILE"; unset pw
 
 psql() {
