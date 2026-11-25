@@ -1,0 +1,62 @@
+# infra/docker/etl
+
+공공데이터 3종 수집(mnm-data `etl/`)을 스테이징 서버에서 매일 자동으로 돌리는 설정입니다.
+
+- **담당**: @dooooing (실행 환경·예약) · 수집 코드는 @tjdlsry (mnm-data `etl/`)
+- 명세: DATA-02(정기 수집) · ADM-09([지금 수집]) · REQ-OPS-06(실패 알림)
+
+## 구성
+
+| 무엇 | 서버 위치 | 내용 |
+| --- | --- | --- |
+| 컨테이너 `mnm-etl` | `/root/mnm-etl/compose.yml` | 공식 `python:3.12-slim` + 패키지. 대기만 함 |
+| 수집 코드 | `/root/mnm-etl/etl/` | mnm-data `etl/` 사본 (읽기 전용으로 붙임) |
+| 설정 | `/root/mnm-etl/.env` (권한 600) | 아래 표. 값은 서버에만 |
+| 예약 | `/etc/cron.d/mnm-etl` | `mnm-etl.cron` |
+| 성공 알림 | `/root/mnm-etl/run_notify.py` | 수집 스크립트를 감싸 실행하고, `성공: <작업> <건수>건` 줄을 찾아 디스코드 `수집-기록` 채널로 알림 |
+
+| 작업 | 예약 (KST) |
+| --- | --- |
+| `outbreak` 가축질병발생정보 | 매일 05:10 |
+| `disinfection_facility` 거점소독시설 | 매일 05:20 |
+| `farm_scale` 사육규모 | 매월 1일 05:40 |
+| `run_requested.py` 어드민 [지금 수집] | 5분마다 |
+
+## `.env` 키 (값은 커밋하지 않음)
+
+| 키 | 값 |
+| --- | --- |
+| `DB_HOST` `DB_PORT` `DB_NAME` `DB_USER` `DB_PASSWORD` | Cloud DB, 계정 `mnm_api` (mnm-data#8 PM 결정) |
+| `MAFRA_API_KEY` · `PUBLIC_DATA_API_KEY` | 공공데이터 인증키 (@tjdlsry) |
+| `ALERT_WEBHOOK_URL` · `ALERT_WEBHOOK_FORMAT=discord` | **실패** 알림: 감시 프로그램과 같은 웹훅 (`스테이징-알림`) |
+| `NOTIFY_WEBHOOK_URL` | **성공** 알림: `수집-기록` 채널 웹훅. 비면 성공 알림 없음 |
+| `S3_ENDPOINT_URL` `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `S3_BUCKET_NAME` | 원본 저장 (없으면 저장만 건너뜀) |
+
+## 스테이징 첫 실행 (11/25)
+
+| 작업 | 결과 |
+| --- | --- |
+| `outbreak` | 23:01 손으로 · 23:10 [지금 수집] → 2,012건 (원본 46,657건 중 소·2023년 이후) |
+| `disinfection_facility` | 23:02 · 23:10 → 225건 |
+| `farm_scale` | 23:10 [지금 수집] → 641행 (2023~2026, 한우) |
+| `run_requested.py` | 23:10 예약 실행, 요청 3개 처리 |
+
+## 알림
+
+| 결과 | 채널 | 예 |
+| --- | --- | --- |
+| 성공 | `수집-기록` | ✅ [staging] 수집 성공: 가축 질병 발생 정보 2,012건 (05:10) |
+| 실패 | `스테이징-알림` | 🚨 수집 작업 실패: outbreak — (원인) (직전 데이터 유지) |
+
+- [지금 수집] 5분 확인은 요청이 있어 실제로 수집한 작업만 알립니다 ('요청 없음'이면 안 보냄)
+
+## 확인
+
+```bash
+journalctl -t mnm-etl --since today          # 예약 실행 출력
+sudo docker exec mnm-etl python etl/outbreak/collect.py   # 손으로 1회
+```
+
+- 결과는 DB `etl_job_run`(어드민 수집 현황)에 남습니다. 실패하면 디스코드 `스테이징-알림`으로 옵니다
+- 성공 알림 래퍼 시험: `python -m unittest test_run_notify` (7개)
+- 수집 코드가 바뀌면 `/root/mnm-etl/etl/`만 새 사본으로 바꿉니다 (컨테이너 재시작 필요 없음)
