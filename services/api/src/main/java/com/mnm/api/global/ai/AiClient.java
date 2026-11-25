@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * 서버 → AI 서비스 호출 (docs/api/ai-internal.yaml, AI-INT-*). 요청·응답 이름은 그 명세를 따른다.
  * 실패하면 {@link AiException}을 던지고, 부르는 쪽이 명세의 대체 경로(글쓰기·선택형 입력·원본 기록 표시)로 진행한다.
- * shortcut: 지금 구현은 {@link MockAiClient}뿐이다. AI 서버(mnm-ai)가 배포되면 AI_BASE_URL 로 호출하는 구현으로 바꾼다.
+ * 구현: AI_BASE_URL 이 있으면 {@link HttpAiClient}, 없으면 {@link MockAiClient} ({@link AiConfig}).
  */
 public interface AiClient {
 
@@ -95,5 +95,18 @@ public interface AiClient {
 
     /** t: 영상 안 시각(초). label: stand | lie | eat */
     record BehaviorFrame(double t, String label, double confidence) {
+    }
+
+    /**
+     * AI-INT-09 /ai/guide: 게시된 공식 지침에서 근거 조항 고르기 (원문 그대로). 근거가 없으면 RAG-NONE.
+     * disease: FMD | LSD | null. stage: suspect | after_report | regional. query 가 없으면 단계별 조항 목록
+     */
+    GuideResult guide(String disease, String stage, String query);
+
+    /** ruleIds · texts · citations 는 같은 순서. ruleId 는 biosecurity_rule_id 문자열 */
+    record GuideResult(List<String> ruleIds, List<String> texts, List<GuideCitation> citations, boolean fallback) {
+    }
+
+    record GuideCitation(String doc, String clause, LocalDate revisedAt) {
     }
 }

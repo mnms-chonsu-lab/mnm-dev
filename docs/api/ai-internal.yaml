@@ -752,6 +752,7 @@ components:
           - type: string
           - type: 'null'
           default: null
+          description: 어미 소. 말한 번호 그대로 (끝 4자리 또는 12자리)
           title: Mother Tag4
         birth_date:
           anyOf:
@@ -778,6 +779,13 @@ components:
           description: 개체번호 끝 4자리
           title: Tag4
           type: string
+        tag:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: 귀표 12자리. 끝 4자리가 겹치는 소를 12자리로 구분할 때 씀. 모르면 null
+          title: Tag
         desc:
           anyOf:
           - type: string
@@ -804,6 +812,7 @@ components:
           - type: string
           - type: 'null'
           default: null
+          description: 말한 번호 그대로 (끝 4자리 또는 12자리)
           title: Cow Tag
         death_date:
           anyOf:
@@ -872,8 +881,15 @@ components:
           - type: string
           - type: 'null'
           default: null
-          description: 소 목록에 없으면 null
+          description: 소 목록에 없거나, 끝 4자리가 같은 소가 2마리 이상이라 정할 수 없으면 null
           title: Cow Tag4
+        cow_tag:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: 소가 정해졌고 소 목록에 12자리(tag)가 있으면 그 12자리. 아니면 null
+          title: Cow Tag
         vaccine_type:
           anyOf:
           - type: string
@@ -910,6 +926,7 @@ components:
           - type: string
           - type: 'null'
           default: null
+          description: 말한 번호 그대로 (끝 4자리 또는 12자리)
           title: Cow Tag
         move_date:
           anyOf:
@@ -931,6 +948,28 @@ components:
           default: null
           title: Counterpart Name
       title: MoveFields
+      type: object
+    RouteReport:
+      additionalProperties: false
+      properties:
+        report_type:
+          enum:
+          - birth
+          - death
+          - move
+          title: Report Type
+          type: string
+        report_fields:
+          anyOf:
+          - $ref: '#/components/schemas/RouteBirthFields'
+          - $ref: '#/components/schemas/RouteDeathFields'
+          - $ref: '#/components/schemas/RouteMoveFields'
+          description: report_type 에 맞는 항목
+          title: Report Fields
+      required:
+      - report_type
+      - report_fields
+      title: RouteReport
       type: object
     RouteRequest:
       additionalProperties: false
@@ -978,6 +1017,7 @@ components:
             type: string
           - type: 'null'
           default: null
+          description: 첫 번째 신고서 종류 (reports[0]). 신고가 아니면 null
           title: Report Type
         report_fields:
           anyOf:
@@ -986,10 +1026,24 @@ components:
           - $ref: '#/components/schemas/RouteMoveFields'
           - additionalProperties: true
             type: object
-          description: report_type 에 맞는 항목. 신고가 아니면 {}
+          description: 첫 번째 신고서 항목 (reports[0]). 신고가 아니면 {}
           title: Report Fields
+        reports:
+          description: '신고서 목록. 소 한 마리에 1장 (예: 2마리 폐사 → 2장). 신고가 아니면 빈 목록'
+          items:
+            $ref: '#/components/schemas/RouteReport'
+          title: Reports
+          type: array
+        notice:
+          anyOf:
+          - const: market_trade
+            type: string
+          - type: 'null'
+          default: null
+          description: '안내 코드. "market_trade": 가축시장 거래라 신고서를 만들지 않음 (시장이 신고). 문구는 받는 쪽이 공식 자료로 붙임'
+          title: Notice
         missing:
-          description: 말한 개체번호 끝 4자리가 소 목록에 없으면 "cow"
+          description: 말한 개체번호가 소 목록에 없거나, 끝 4자리만 말했는데 같은 소가 2마리 이상이면 "cow"
           items:
             type: string
           title: Missing

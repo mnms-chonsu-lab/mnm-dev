@@ -27,6 +27,8 @@ import com.mnm.api.domain.symptom.SymptomReport;
 import com.mnm.api.domain.task.Task;
 import com.mnm.api.domain.user.User;
 import com.mnm.api.global.ai.AiClient;
+import com.mnm.api.global.ai.AiClient.GuideCitation;
+import com.mnm.api.global.ai.AiClient.GuideResult;
 import com.mnm.api.global.ai.AiClient.RouteItem;
 import com.mnm.api.global.ai.AiClient.RouteResult;
 import java.time.Duration;
@@ -431,6 +433,19 @@ class FarmerApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.disease").value("FMD"))
                 .andExpect(jsonPath("$.data.actions").isEmpty());
+    }
+
+    @Test
+    void 지금_할_일은_AI가_고른_조항을_원문_그대로_쓴다() throws Exception {
+        doReturn(new GuideResult(List.of("31"), List.of("축사 출입을 막아 주세요."),
+                List.of(new GuideCitation("구제역 긴급행동지침", "3-1", LocalDate.of(2025, 1, 1))), false))
+                .when(aiClient).guide("FMD", "after_report", null);
+        farmer(get("/api/farmer/guide/actions").param("disease", "fmd"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guide_name").value("구제역 긴급행동지침"))
+                .andExpect(jsonPath("$.data.actions[0].rule_id").value(31))
+                .andExpect(jsonPath("$.data.actions[0].text").value("축사 출입을 막아 주세요."))
+                .andExpect(jsonPath("$.data.actions[0].clause").value("3-1"));
     }
 
     @Test

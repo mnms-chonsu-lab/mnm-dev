@@ -11,16 +11,15 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.springframework.stereotype.Component;
 
 /**
  * AI 서버 없이 화면 흐름을 돌리기 위한 가짜 구현.
  * - stt: 음성 내용과 상관없이 시연 문장(S1)을 돌려준다.
  * - route: 단어 규칙으로 일지 분류·귀표 끝 4자리·신고서 항목을 뽑는다 (LLM 아님, 정확도 보장 없음).
  * - summary: 명세(REQ-AI-09)가 규칙만으로 만든다고 정한 형식을 그대로 만든다.
- * shortcut: 실제 AI 서버(mnm-ai)가 배포되면 HTTP 구현으로 바꾸고 이 클래스는 테스트용으로만 남긴다.
+ * - guide: 늘 RAG-NONE. 부르는 쪽이 DB 에 게시된 문구로 진행한다.
+ * AI_BASE_URL 이 없을 때(로컬·테스트) 쓴다 ({@link AiConfig}).
  */
-@Component
 public class MockAiClient implements AiClient {
 
     /** 기능명세서 시연 시나리오 S1 발화 */
@@ -287,5 +286,10 @@ public class MockAiClient implements AiClient {
             frames.add(new BehaviorFrame(i, i < 7 ? "lie" : i < 9 ? "stand" : "eat", 0.8));
         }
         return new BehaviorResult(frames, "lie", "mock");
+    }
+
+    @Override
+    public GuideResult guide(String disease, String stage, String query) {
+        throw new AiException("RAG-NONE", "가짜 AI 는 조항을 고르지 않음");
     }
 }

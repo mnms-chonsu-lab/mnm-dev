@@ -40,6 +40,11 @@ mnm:
     bucket: ${STORAGE_BUCKET:}
     access-key: ${STORAGE_ACCESS_KEY:}
     secret-key: ${STORAGE_SECRET_KEY:}
+  ai:
+    # mnm-ai 내부 API 서버 (docs/api/ai-internal.yaml). 비우면 가짜 AI (음성은 늘 같은 시연 문장으로 인식됨)
+    base-url: ${AI_BASE_URL:}
+    # AI 서버의 AI_INTERNAL_TOKEN 과 같은 값 (X-Internal-Token 헤더). base-url 을 넣으면 필수
+    internal-token: ${AI_INTERNAL_TOKEN:}
 
 logging:
   pattern:
