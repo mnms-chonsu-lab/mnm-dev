@@ -11,6 +11,8 @@ services:
       sh -c "pip install --no-cache-dir -q 'psycopg[binary]' python-dotenv boto3 pandas requests
       && echo '[mnm-etl] 준비됨' && exec sleep infinity"
     env_file: .env            # DB(mnm_api)·인증키·웹훅. 값은 서버에만 (README)
+    environment:
+      PYTHONUNBUFFERED: "1"   # 출력을 바로 내보냄. 안 하면 로그 순서가 뒤섞임 (실행: … 줄이 결과 뒤에 찍힘)
     volumes:
       - ./etl:/app/etl:ro     # mnm-data/etl 사본
     mem_limit: 512m           # 제안값, 실측으로 조정 (pandas 사용하는 farm_scale 기준)

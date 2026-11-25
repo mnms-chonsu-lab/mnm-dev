@@ -30,6 +30,15 @@
 | `ALERT_WEBHOOK_URL` · `ALERT_WEBHOOK_FORMAT=discord` | 감시 프로그램과 같은 디스코드 웹훅 |
 | `S3_ENDPOINT_URL` `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `S3_BUCKET_NAME` | 원본 저장 (없으면 저장만 건너뜀) |
 
+## 스테이징 첫 실행 (11/25)
+
+| 작업 | 결과 |
+| --- | --- |
+| `outbreak` | 23:01 손으로 · 23:10 [지금 수집] → 2,012건 (원본 46,657건 중 소·2023년 이후) |
+| `disinfection_facility` | 23:02 · 23:10 → 225건 |
+| `farm_scale` | 23:10 [지금 수집] → 641행 (2023~2026, 한우) |
+| `run_requested.py` | 23:10 예약 실행, 요청 3개 처리 |
+
 ## 확인
 
 ```bash
