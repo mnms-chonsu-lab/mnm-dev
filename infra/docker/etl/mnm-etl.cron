@@ -1,13 +1,14 @@
 # 공공데이터 수집 예약 (스테이징). 서버에서는 /etc/cron.d/mnm-etl 로 둔다 (root, 권한 644)
 # 시각은 서버 시간대 기준 (스테이징 서버 KST). 주기는 mnm-data etl/README.md 명세
 # 출력은 시스템 로그로 보낸다: journalctl -t mnm-etl
+# run_notify.py: 성공하면 디스코드 '수집-기록' 채널(NOTIFY_WEBHOOK_URL)에 알림. 실패 알림은 수집 스크립트가 '스테이징-알림'으로
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # 가축질병발생정보 · 거점소독시설: 매일 1회
-10 5 * * * root docker exec mnm-etl python etl/outbreak/collect.py 2>&1 | logger -t mnm-etl
-20 5 * * * root docker exec mnm-etl python etl/disinfection_facility/collect.py 2>&1 | logger -t mnm-etl
+10 5 * * * root docker exec mnm-etl python run_notify.py etl/outbreak/collect.py 2>&1 | logger -t mnm-etl
+20 5 * * * root docker exec mnm-etl python run_notify.py etl/disinfection_facility/collect.py 2>&1 | logger -t mnm-etl
 # 사육규모: 매월 1일
-40 5 1 * * root docker exec mnm-etl python etl/farm_scale/collect.py 2>&1 | logger -t mnm-etl
+40 5 1 * * root docker exec mnm-etl python run_notify.py etl/farm_scale/collect.py 2>&1 | logger -t mnm-etl
 # 어드민 [지금 수집] 요청 확인: 5분마다
-*/5 * * * * root docker exec mnm-etl python etl/run_requested.py 2>&1 | logger -t mnm-etl
+*/5 * * * * root docker exec mnm-etl python run_notify.py etl/run_requested.py 2>&1 | logger -t mnm-etl
