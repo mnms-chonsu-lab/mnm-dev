@@ -34,7 +34,7 @@ META = {
                              "SigLIP 2가 다른 부위라고 했거나 Vision이 `none`(소 부위가 아님)이면 Vision 결과를 따름 (`fallback: true`), "
                              "Vision 실패 시 SigLIP 2 결과 유지. 둘 다 `PART_FALLBACK_VISION=1`일 때만 "
                              "(Vision 제한 시간 최대 8초. 스테이징 실측 AI 1.97·2.35초, 11/26 22:44~22:45 2장, 소가 아닌 사진). "
-                             "앱은 최대 3초 기다리고, 늦게 온 결과는 요약 화면(F-S11)에 표시 (#15 유민님 정리)")),
+                             "앱은 최대 5초 기다리고(영상은 3초, mnm-dev#66), 늦게 온 결과는 요약 화면(F-S11)에 표시 (#15 유민님 정리)")),
     "behavior": dict(file="behavior.json", prefix="Behavior", summary="영상 → 서기·눕기·먹기 비율",
                      timeout=8, retry503=False, retry_note="연결 실패(응답 없음)일 때만 1회. 503·504는 안 함",
                      fallback="서버가 \"확인 안 됨\"으로 저장하고 진행", spec="REQ-AI-11"),
