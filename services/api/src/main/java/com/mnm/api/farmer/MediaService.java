@@ -56,6 +56,8 @@ class MediaService {
     static final Duration UPLOAD_TTL = Duration.ofMinutes(10);
     /** 앱이 AI 결과를 기다리는 시간. 넘으면 pending 으로 답하고 결과는 뒤에서 저장한다 (REQ-OPS-09) */
     static final Duration APP_WAIT = Duration.ofSeconds(3);
+    /** 사진 부위 확인만 더 기다린다. SigLIP 2 + OpenAI 재확인이 2.7~3.6초라 3초면 경고가 자주 빠진다 (제안값, 실측으로 조정) */
+    static final Duration PHOTO_WAIT = Duration.ofSeconds(5);
 
     private static final Map<String, String> PHOTO_TYPES = Map.of(
             "image/jpeg", "jpg", "image/png", "png", "image/heic", "heic");
@@ -107,10 +109,11 @@ class MediaService {
                     r.predictedPart(), r.match(), decimal(r.score(), 4), r.modelVersion(),
                     decimal(r.quality().brightness(), 2))));
             return r;
-        }, "부위 확인");
+        }, "부위 확인", PHOTO_WAIT);
         PartCheckResult r = outcome.value();
-        return r == null ? new PartCheckResponse(mediaId, outcome.status(), null, null, null)
-                : new PartCheckResponse(mediaId, "done", r.match(), r.quality().dark(), r.quality().blurry());
+        return r == null ? new PartCheckResponse(mediaId, outcome.status(), null, null, null, null)
+                : new PartCheckResponse(mediaId, "done", r.match(), r.quality().dark(), r.quality().blurry(),
+                        "none".equals(r.predictedPart()));
     }
 
     /** FARM-21 행동 영상 분류. 이미 분류한 영상이면 저장된 비율을 돌려준다 */
@@ -135,7 +138,7 @@ class MediaService {
                 behaviorRepository.saveAll(records);
                 return BehaviorRecord.ratio(records);
             });
-        }, "행동 분류");
+        }, "행동 분류", APP_WAIT);
         return new BehaviorResponse(mediaId, outcome.status(), outcome.value());
     }
 
@@ -202,10 +205,10 @@ class MediaService {
     private record Outcome<T>(String status, T value) {
     }
 
-    private <T> Outcome<T> await(Supplier<T> call, String what) {
+    private <T> Outcome<T> await(Supplier<T> call, String what, Duration wait) {
         CompletableFuture<T> future = CompletableFuture.supplyAsync(call, AI_CALLS);
         try {
-            return new Outcome<>("done", future.get(APP_WAIT.toMillis(), TimeUnit.MILLISECONDS));
+            return new Outcome<>("done", future.get(wait.toMillis(), TimeUnit.MILLISECONDS));
         } catch (TimeoutException e) {
             future.whenComplete((r, ex) -> {
                 if (ex != null) {

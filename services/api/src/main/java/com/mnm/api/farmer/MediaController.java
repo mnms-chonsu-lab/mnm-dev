@@ -35,7 +35,7 @@ class MediaController {
     }
 
     @Operation(summary = "부위 확인 (FARM-13)",
-            description = "업로드 후 부른다. 3초 안에 끝나면 done, 늦으면 pending (결과는 FARM-14), 실패하면 failed (사진은 저장됨)")
+            description = "업로드 후 부른다. 5초 안에 끝나면 done, 늦으면 pending (결과는 FARM-14), 실패하면 failed (사진은 저장됨)")
     @PostMapping("/media/{id}/part-check")
     BaseResponse<PartCheckResponse> partCheck(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         return BaseResponse.of(mediaService.partCheck(FarmerSupport.userId(jwt), id));

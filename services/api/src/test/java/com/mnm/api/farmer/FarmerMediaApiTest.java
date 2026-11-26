@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -24,6 +25,8 @@ import com.mnm.api.domain.symptom.FieldMedia;
 import com.mnm.api.domain.symptom.SymptomReport;
 import com.mnm.api.domain.user.User;
 import com.mnm.api.global.ai.AiClient;
+import com.mnm.api.global.ai.AiClient.PartCheckResult;
+import com.mnm.api.global.ai.AiClient.Quality;
 import com.mnm.api.global.ai.AiException;
 import com.mnm.api.global.storage.StorageClient;
 import com.mnm.api.global.storage.StorageException;
@@ -155,6 +158,7 @@ class FarmerMediaApiTest {
                 .andExpect(jsonPath("$.data.status").value("done"))
                 .andExpect(jsonPath("$.data.match").value(true))
                 .andExpect(jsonPath("$.data.dark").value(false))
+                .andExpect(jsonPath("$.data.not_cow").value(false))
                 .andExpect(jsonPath("$.data.predicted_part").doesNotExist());
         assertThat(photo.getMatch()).isTrue();
         assertThat(photo.getModelVersion()).isEqualTo("mock");
@@ -167,6 +171,22 @@ class FarmerMediaApiTest {
                 .andExpect(jsonPath("$.data.status").value("failed"))
                 .andExpect(jsonPath("$.data.match").doesNotExist());
         assertThat(other.getMatch()).isNull();
+    }
+
+    @Test
+    void 소가_아닌_사진은_not_cow로_알리고_사진은_3초가_넘어도_5초까지_기다린다() throws Exception {
+        media(77L, "photo", "mouth", "field/1/7/77.jpg");
+        doAnswer(inv -> {
+            Thread.sleep(3500);
+            return new PartCheckResult("mouth", "none", false, 0.9, new Quality(false, false, 120), "test", true);
+        }).when(aiClient).partCheck(anyString(), eq("mouth"));
+
+        farmer(post("/api/farmer/media/77/part-check"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("done"))
+                .andExpect(jsonPath("$.data.match").value(false))
+                .andExpect(jsonPath("$.data.not_cow").value(true))
+                .andExpect(jsonPath("$.data.predicted_part").doesNotExist());
     }
 
     @Test

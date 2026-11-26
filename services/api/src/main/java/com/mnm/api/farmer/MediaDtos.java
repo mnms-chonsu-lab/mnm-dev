@@ -31,10 +31,10 @@ final class MediaDtos {
     }
 
     /**
-     * FARM-13 부위 확인. status: done | pending(3초 안에 안 끝남, 결과는 FARM-14 에서) | failed(확인 안 됨, 사진은 저장됨).
-     * match·dark·blurry 는 done 일 때만 값이 있다
+     * FARM-13 부위 확인. status: done | pending(5초 안에 안 끝남, 결과는 FARM-14 에서) | failed(확인 안 됨, 사진은 저장됨).
+     * match·dark·blurry·notCow 는 done 일 때만 값이 있다. notCow: AI 가 소 부위가 아니라고 봄(predicted_part=none)
      */
-    record PartCheckResponse(Long mediaId, String status, Boolean match, Boolean dark, Boolean blurry) {
+    record PartCheckResponse(Long mediaId, String status, Boolean match, Boolean dark, Boolean blurry, Boolean notCow) {
     }
 
     /** FARM-21 행동 영상. ratio: stand · lie · eat (%, 참고). done 이 아니면 null */
