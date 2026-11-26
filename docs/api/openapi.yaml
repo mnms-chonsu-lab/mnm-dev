@@ -824,10 +824,12 @@ paths:
       summary: 부위 확인 (FARM-13, F-S10)
       description: |
         올라온 사진의 서명 URL 로 /ai/part-check 를 부르고 결과를 field_media 에 저장한다 (REQ-OPS-09).
-        data = { media_id, status, match, dark, blurry }
-        - status: done | pending(3초 안에 안 끝남, 결과는 뒤에서 저장해 FARM-14 에 표시) | failed(PART-FAIL, 사진은 저장됨 "부위 확인 안 됨")
-        - match · dark · blurry 는 done 일 때만. match=false → PART-MISMATCH 안내 + [다시 찍기] (새 업로드 URL)
+        data = { media_id, status, match, dark, blurry, not_cow }
+        - status: done | pending(5초 안에 안 끝남, 결과는 뒤에서 저장해 FARM-14 에 표시) | failed(PART-FAIL, 사진은 저장됨 "부위 확인 안 됨")
+        - match · dark · blurry · not_cow 는 done 일 때만. 농가 앱은 match=false 를 보여 주지 않고 not_cow · dark · blurry 만 경고 + [다시 찍기] (mnm-frontend#72)
+        - not_cow: AI 가 소 부위가 아니라고 봄 (/ai/part-check predicted_part = none)
         - 판정된 부위 이름은 주지 않는다. AI 서버 배포 전에는 mock (항상 일치)
+        - 앱 대기: 사진만 5초 (영상은 3초, 제안값, 실측으로 조정)
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer }, description: FARM-12 media_id }
       responses:
