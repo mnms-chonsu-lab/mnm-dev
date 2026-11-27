@@ -484,6 +484,27 @@ paths:
         '200': { $ref: '#/components/responses/RecordDraft' }
         '413': { description: UPLOAD-FAIL }
         '422': { description: VALID-422 (빈 파일 · 음성 형식 아님) }
+  /api/farmer/stt:
+    post:
+      tags: [농가 앱]
+      summary: 말 → 글 (F-S08 끝 4자리 · F-S08S 본 것 말하기)
+      description: |
+        음성 → 문장(/ai/stt)만 한다. 정리(/ai/route)·저장하지 않는다. 음성 원본도 저장하지 않는다.
+        data = { text, fallback }. 못 알아들으면 200 + text=null, fallback=text_input (글 입력칸).
+        AI 서버 배포 전에는 mock (음성 내용과 상관없이 시연 문장 S1 을 돌려준다)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: 'audio/webm · audio/mp4(m4a), 60초 이하, 10MB 이하' }
+      responses:
+        '200': { description: '{ text: string | null, fallback: text_input | null }' }
+        '413': { description: UPLOAD-FAIL }
+        '422': { description: VALID-422 (빈 파일 · 음성 형식 아님) }
   /api/farmer/records/text:
     post:
       tags: [농가 앱]

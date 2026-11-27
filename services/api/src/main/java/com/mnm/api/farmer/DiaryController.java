@@ -7,6 +7,7 @@ import com.mnm.api.farmer.DiaryDtos.DiarySaveRequest;
 import com.mnm.api.farmer.DiaryDtos.DiarySaveResponse;
 import com.mnm.api.farmer.DiaryDtos.DiaryUpdateRequest;
 import com.mnm.api.farmer.DiaryDtos.RecordDraft;
+import com.mnm.api.farmer.DiaryDtos.SpeechText;
 import com.mnm.api.farmer.DiaryDtos.TextRecordRequest;
 import com.mnm.api.global.config.ApiPaths;
 import com.mnm.api.global.response.BaseResponse;
@@ -43,6 +44,13 @@ class DiaryController {
     @PostMapping(value = "/records/voice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     BaseResponse<RecordDraft> voice(@AuthenticationPrincipal Jwt jwt, @RequestPart("audio") MultipartFile audio) {
         return BaseResponse.of(diaryService.draftFromVoice(FarmerSupport.userId(jwt), audio));
+    }
+
+    @Operation(summary = "말 → 글 (F-S08·F-S08S)",
+            description = "multipart audio. F-S08 끝 4자리 · F-S08S 본 것 말하기용. 정리·저장하지 않는다. 못 알아들으면 fallback=text_input")
+    @PostMapping(value = "/stt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    BaseResponse<SpeechText> stt(@RequestPart("audio") MultipartFile audio) {
+        return BaseResponse.of(diaryService.speech(audio));
     }
 
     @Operation(summary = "글 기록 → 정리 초안 (FARM-25)", description = "저장하지 않는다. 정리가 안 되면 fallback=select_input")
