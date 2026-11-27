@@ -17,6 +17,7 @@ import com.mnm.api.farmer.DiaryDtos.DraftItem;
 import com.mnm.api.farmer.DiaryDtos.RecordDraft;
 import com.mnm.api.farmer.DiaryDtos.ReportNotice;
 import com.mnm.api.farmer.DiaryDtos.SentTo;
+import com.mnm.api.farmer.DiaryDtos.SpeechText;
 import com.mnm.api.global.ai.AiClient;
 import com.mnm.api.global.ai.AiClient.RouteCow;
 import com.mnm.api.global.ai.AiClient.RouteRequest;
@@ -67,14 +68,7 @@ class DiaryService {
      * (FARM-04 저장 때 연결). AI 호출 동안 DB 트랜잭션을 잡지 않으려고 @Transactional 을 붙이지 않는다.
      */
     RecordDraft draftFromVoice(Long userId, MultipartFile audio) {
-        if (audio == null || audio.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "녹음된 소리가 없어요. 다시 말해 주세요.", "빈 파일");
-        }
-        String contentType = audio.getContentType();
-        if (contentType == null || !(contentType.startsWith("audio/") || contentType.equals("video/webm")
-                || contentType.equals("video/mp4"))) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "음성 파일만 올릴 수 있어요.", "음성 형식 아님");
-        }
+        String contentType = checkAudio(audio);
         FarmInfo farm = support.farm(userId);
         RecordDraft textInput = new RecordDraft(null, null, List.of(), null, Map.of(), List.of(), null, "text_input");
         byte[] bytes;
@@ -93,6 +87,36 @@ class DiaryService {
             return textInput.withAudio(audioMediaId);
         }
         return draft(farm, text).withAudio(audioMediaId);
+    }
+
+    /**
+     * 음성 → 문장만 (F-S08 끝 4자리 · F-S08S 본 것 말하기). 정리·저장하지 않는다.
+     * 못 알아들으면 fallback=text_input (글 입력칸).
+     */
+    SpeechText speech(MultipartFile audio) {
+        String contentType = checkAudio(audio);
+        try {
+            String text = aiClient.stt(audio.getBytes(), contentType).text();
+            if (text != null && !text.isBlank()) {
+                return new SpeechText(text.trim(), null);
+            }
+        } catch (AiException | IOException e) {
+            log.warn("음성 인식 실패, 글로 쓰기로 안내: {}", e.getMessage());
+        }
+        return new SpeechText(null, "text_input");
+    }
+
+    /** 빈 파일 · 음성 형식 아님 → VALID-422. 형식을 돌려준다 */
+    private static String checkAudio(MultipartFile audio) {
+        if (audio == null || audio.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "녹음된 소리가 없어요. 다시 말해 주세요.", "빈 파일");
+        }
+        String contentType = audio.getContentType();
+        if (contentType == null || !(contentType.startsWith("audio/") || contentType.equals("video/webm")
+                || contentType.equals("video/mp4"))) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "음성 파일만 올릴 수 있어요.", "음성 형식 아님");
+        }
+        return contentType;
     }
 
     /** FARM-25. 글 → 정리 초안 (음성 인식만 건너뜀) */

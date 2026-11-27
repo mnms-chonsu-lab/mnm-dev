@@ -22,6 +22,10 @@ final class DiaryDtos {
     }
 
     /** FARM-25 글로 쓴 기록 */
+    /** 말 → 글 (F-S08·F-S08S). 못 알아들으면 text=null, fallback=text_input */
+    record SpeechText(String text, String fallback) {
+    }
+
     record TextRecordRequest(
             @NotBlank(message = "기록할 내용을 써 주세요.")
             @Size(max = 2000, message = "2000자까지 쓸 수 있어요.") String text) {

@@ -283,6 +283,28 @@ class FarmerMediaApiTest {
     }
 
     @Test
+    void 말하기는_글만_돌려주고_저장하지_않으며_못_알아들으면_글_입력으로_안내한다() throws Exception {
+        farmer(multipart("/api/farmer/stt")
+                .file(new MockMultipartFile("audio", "a.webm", "audio/webm", new byte[] {1, 2})))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.text").value("어젯밤에 0871번이 송아지 낳았어. 암컷이야."))
+                .andExpect(jsonPath("$.data.fallback").doesNotExist());
+        verify(storage, never()).put(anyString(), any(), anyString());
+
+        doThrow(new AiException("STT-FAIL", "무음")).when(aiClient).stt(any(), anyString());
+        farmer(multipart("/api/farmer/stt")
+                .file(new MockMultipartFile("audio", "a.m4a", "audio/mp4", new byte[] {1})))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.text").doesNotExist())
+                .andExpect(jsonPath("$.data.fallback").value("text_input"));
+
+        farmer(multipart("/api/farmer/stt")
+                .file(new MockMultipartFile("audio", "a.jpg", "image/jpeg", new byte[] {1})))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALID-422"));
+    }
+
+    @Test
     void 오늘_기록_요약에_사진과_영상_원본_주소와_행동_비율이_있다() throws Exception {
         FieldMedia photo = media(77L, "photo", "mouth", "field/1/7/77.jpg");
         FieldMedia hoof = media(78L, "photo", "hoof", "field/1/7/78.jpg");
